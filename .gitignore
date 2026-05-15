@@ -216,3 +216,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Buggsy: wake-word model artifacts (download out-of-band; not source-controlled)
+robot/wake_models/*.onnx
+robot/wake_models/*.tflite
+
+# Buggsy: local config overrides
+*.local.yaml

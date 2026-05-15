@@ -1,0 +1,15 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "buggsy-shared"
+version = "0.1.0"
+description = "Shared protocols and MQTT message schemas for the Buggsy robot system."
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/shared"]
