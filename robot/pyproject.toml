@@ -1,0 +1,19 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "buggsy-robot"
+version = "0.1.0"
+description = "Buggsy agent that runs on the Reachy Mini Wireless."
+requires-python = ">=3.12"
+dependencies = [
+    "buggsy-shared",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/robot"]
+
+[tool.hatch.metadata]
+# Allow direct local path deps during development.
+allow-direct-references = true
