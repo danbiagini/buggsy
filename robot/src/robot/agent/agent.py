@@ -34,6 +34,7 @@ Env vars:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import signal
@@ -46,10 +47,12 @@ from enum import Enum
 import aiomqtt
 
 from shared.protocol import (
+    TOPIC_MOVE,
     TOPIC_SPEAK,
     TOPIC_SPOKE_DONE,
     TOPIC_STATE,
     TOPIC_WAKE,
+    MoveCommand,
     SpeakCommand,
     SpokeDoneEvent,
     StateMessage,
@@ -101,6 +104,33 @@ def daemon_goto_sleep(url: str) -> None:
         _daemon_post(url, "/api/move/play/goto_sleep")
     except (urllib.error.URLError, OSError) as e:
         log.warning("daemon goto_sleep failed: %s", e)
+
+
+def daemon_play_recorded_move(
+    url: str, dataset: str, name: str, timeout: float = 5.0,
+) -> str | None:
+    """POST a recorded-move play to the daemon.
+
+    Returns the move UUID from the daemon's JSON response on success, or
+    None on HTTP / network error / unparseable body. Never raises — the
+    move listener treats failure as "log and move on."
+    """
+    path = f"/api/move/play/recorded-move-dataset/{dataset}/{name}"
+    req = urllib.request.Request(f"{url}{path}", method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            body = resp.read()
+    except urllib.error.HTTPError as e:
+        log.warning("daemon move %s/%s -> HTTP %d", dataset, name, e.code)
+        return None
+    except (urllib.error.URLError, OSError) as e:
+        log.warning("daemon move %s/%s -> %s", dataset, name, e)
+        return None
+    try:
+        return json.loads(body).get("uuid")
+    except (ValueError, AttributeError, TypeError):
+        log.debug("daemon move %s/%s returned non-JSON body", dataset, name)
+        return None
 
 
 class State(Enum):
@@ -215,34 +245,54 @@ async def main() -> None:
                     await _publish_safe(mqtt, TOPIC_STATE, msg.model_dump_json(), retain=True)
                     await asyncio.sleep(HEARTBEAT_S)
 
-            async def speak_listener() -> None:
+            async def handle_speak(payload: bytes) -> None:
+                try:
+                    cmd = SpeakCommand.model_validate_json(payload)
+                except Exception as e:
+                    log.warning("bad speak command: %s", e)
+                    return
+                log.info("SPEAK received: text=%r voice_id=%r audio=%s",
+                         cmd.text, cmd.voice_id,
+                         "inline" if cmd.audio_b64 else (cmd.audio_url or "none"))
+                if not cmd.audio_b64:
+                    log.warning("speak with no inline audio — skipping playback")
+                    return
+                try:
+                    await asyncio.get_running_loop().run_in_executor(
+                        None, play_wav_b64, cmd.audio_b64, output_device, output_volume
+                    )
+                except Exception as e:
+                    log.warning("playback failed: %s", e)
+                asyncio.create_task(_publish_safe(
+                    mqtt, TOPIC_SPOKE_DONE,
+                    SpokeDoneEvent(ts=time.time()).model_dump_json(),
+                ))
+
+            async def handle_move(payload: bytes) -> None:
+                try:
+                    cmd = MoveCommand.model_validate_json(payload)
+                except Exception as e:
+                    log.warning("bad move command: %s", e)
+                    return
+                uuid_resp = await asyncio.to_thread(
+                    daemon_play_recorded_move, daemon_url, cmd.dataset, cmd.name,
+                )
+                log.info("MOVE dispatched: %s/%s uuid=%s turn=%s",
+                         cmd.dataset, cmd.name, uuid_resp, cmd.turn_id)
+
+            async def cmd_listener() -> None:
+                # Single consumer of mqtt.messages — multiple iterators would
+                # race for messages and steal them from each other.
                 if mqtt is None:
                     return
                 await mqtt.subscribe(TOPIC_SPEAK)
+                await mqtt.subscribe(TOPIC_MOVE)
                 async for msg in mqtt.messages:
-                    if msg.topic.value != TOPIC_SPEAK:
-                        continue
-                    try:
-                        cmd = SpeakCommand.model_validate_json(msg.payload)
-                    except Exception as e:
-                        log.warning("bad speak command: %s", e)
-                        continue
-                    log.info("SPEAK received: text=%r voice_id=%r audio=%s",
-                             cmd.text, cmd.voice_id,
-                             "inline" if cmd.audio_b64 else (cmd.audio_url or "none"))
-                    if not cmd.audio_b64:
-                        log.warning("speak with no inline audio — skipping playback")
-                        continue
-                    try:
-                        await asyncio.get_running_loop().run_in_executor(
-                            None, play_wav_b64, cmd.audio_b64, output_device, output_volume
-                        )
-                    except Exception as e:
-                        log.warning("playback failed: %s", e)
-                    asyncio.create_task(_publish_safe(
-                        mqtt, TOPIC_SPOKE_DONE,
-                        SpokeDoneEvent(ts=time.time()).model_dump_json(),
-                    ))
+                    topic = msg.topic.value
+                    if topic == TOPIC_SPEAK:
+                        await handle_speak(msg.payload)
+                    elif topic == TOPIC_MOVE:
+                        await handle_move(msg.payload)
 
             loop = asyncio.get_running_loop()
 
@@ -255,7 +305,7 @@ async def main() -> None:
             tasks = [
                 asyncio.create_task(cooldown_watcher(), name="cooldown"),
                 asyncio.create_task(heartbeat(), name="heartbeat"),
-                asyncio.create_task(speak_listener(), name="speak_listener"),
+                asyncio.create_task(cmd_listener(), name="cmd_listener"),
             ]
 
             # Wake the robot only once mic + MQTT are live, so the visual cue

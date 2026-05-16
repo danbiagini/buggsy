@@ -36,7 +36,7 @@ from shared.protocol import (
 )
 
 from .planner import Planner, StubPlanner
-from .skills import SaySkill, SkillContext, SkillRegistry, dispatch
+from .skills import PlayMoveSkill, SaySkill, SkillContext, SkillRegistry, dispatch
 
 log = logging.getLogger("buggsy.orchestrator")
 
@@ -90,7 +90,10 @@ async def serve() -> None:
         log.warning("greeting.source %r not yet implemented — using StubPlanner",
                     cfg.greeting.source)
 
-    registry = SkillRegistry([SaySkill(tts_url=tts_url, voice_id=voice_id)])
+    registry = SkillRegistry([
+        SaySkill(tts_url=tts_url, voice_id=voice_id),
+        PlayMoveSkill(),
+    ])
     planner: Planner = StubPlanner(cfg.greeting.static_phrase)
 
     log.info("orchestrator config: mqtt=%s:%d tts=%s voice=%s skills=%s phrase=%r",
