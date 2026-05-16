@@ -119,8 +119,25 @@ the robot.
 | --- | --- | --- |
 | `BUGGSY_COOLDOWN_S` | 5.0 | Seconds attentive after last wake before returning to resting. |
 | `BUGGSY_MOCK_MOTION` | unset | Set to `1` to skip the Reachy SDK (run on a dev mac without a robot). |
+| `BUGGSY_DAEMON_URL` | http://localhost:8000 | Reachy daemon base URL. |
+| `BUGGSY_SKIP_DAEMON_WAKE` | unset | Set to `1` to skip the daemon wake/sleep calls (e.g. if Reachy Mini Control has already woken the robot). |
 
 Plus everything from `dev_smoke` (`BUGGSY_WAKE_MODEL`, `BUGGSY_WAKE_THRESHOLD`, etc.).
+
+### Daemon wake/sleep
+
+The Reachy daemon starts in a sleeping state (`--no-wake-up-on-start`). The
+SDK can't establish its WebSocket telemetry until motors are powered. The
+agent handles this by POSTing to the daemon's HTTP API on startup and
+shutdown:
+
+```
+POST /api/move/play/wake_up      # on startup
+POST /api/move/play/goto_sleep   # on clean shutdown
+```
+
+If you've already woken the robot via Reachy Mini Control, set
+`BUGGSY_SKIP_DAEMON_WAKE=1` to avoid the redundant wake animation.
 
 ## Editing from your mac (optional)
 

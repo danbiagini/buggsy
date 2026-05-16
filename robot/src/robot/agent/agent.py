@@ -17,6 +17,9 @@ Env vars:
     BUGGSY_COOLDOWN_S       Seconds to stay attentive after last wake. Default: 5.0
     BUGGSY_MOCK_MOTION      Set to 1 to skip the Reachy SDK (no real robot needed).
     BUGGSY_AUDIO_DEVICE     sounddevice input device index or name.
+    BUGGSY_DAEMON_URL       Reachy daemon base URL. Default: http://localhost:8000
+    BUGGSY_SKIP_DAEMON_WAKE Set to 1 to skip the wake/sleep daemon calls (e.g. if
+                            you've already woken the robot via Reachy Mini Control).
 """
 
 from __future__ import annotations
@@ -26,6 +29,8 @@ import logging
 import os
 import signal
 import time
+import urllib.error
+import urllib.request
 from contextlib import contextmanager
 from enum import Enum
 
@@ -39,6 +44,28 @@ log = logging.getLogger("buggsy.agent")
 
 DEFAULT_MODEL = "robot/wake_models/hey_jarvis_v0.1.onnx"
 DEFAULT_COOLDOWN_S = 5.0
+DEFAULT_DAEMON_URL = "http://localhost:8000"
+WAKE_SETTLE_S = 3.0  # wake_up emote takes ~2-3s; give it time before connecting
+
+
+def _daemon_post(url: str, path: str, timeout: float = 5.0) -> None:
+    req = urllib.request.Request(f"{url}{path}", method="POST")
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        resp.read()
+
+
+def daemon_wake_up(url: str) -> None:
+    log.info("daemon: wake_up")
+    _daemon_post(url, "/api/move/play/wake_up")
+    time.sleep(WAKE_SETTLE_S)
+
+
+def daemon_goto_sleep(url: str) -> None:
+    log.info("daemon: goto_sleep")
+    try:
+        _daemon_post(url, "/api/move/play/goto_sleep")
+    except (urllib.error.URLError, OSError) as e:
+        log.warning("daemon goto_sleep failed: %s", e)
 
 
 class State(Enum):
@@ -65,6 +92,8 @@ async def main() -> None:
     threshold = float(os.environ.get("BUGGSY_WAKE_THRESHOLD", "0.5"))
     cooldown_s = float(os.environ.get("BUGGSY_COOLDOWN_S", str(DEFAULT_COOLDOWN_S)))
     use_mock = os.environ.get("BUGGSY_MOCK_MOTION") == "1"
+    daemon_url = os.environ.get("BUGGSY_DAEMON_URL", DEFAULT_DAEMON_URL)
+    skip_daemon_wake = os.environ.get("BUGGSY_SKIP_DAEMON_WAKE") == "1"
     device_env = os.environ.get("BUGGSY_AUDIO_DEVICE")
     device: int | str | None = None
     if device_env:
@@ -72,6 +101,9 @@ async def main() -> None:
 
     state = State.IDLE
     last_wake_ts = 0.0
+
+    if not use_mock and not skip_daemon_wake:
+        daemon_wake_up(daemon_url)
 
     with open_mini(use_mock) as mini:
         motion: MotionLike = MockMotion() if use_mock else Motion(mini)
@@ -119,6 +151,8 @@ async def main() -> None:
                 motion.resting_pose()
             except Exception:
                 pass
+            if not use_mock and not skip_daemon_wake:
+                daemon_goto_sleep(daemon_url)
 
 
 if __name__ == "__main__":
