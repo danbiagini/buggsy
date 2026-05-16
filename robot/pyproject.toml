@@ -12,6 +12,7 @@ dependencies = [
     "sounddevice>=0.4",
     "numpy>=1.26",
     "openwakeword>=0.6",
+    "aiomqtt>=2.0",
 ]
 
 [project.optional-dependencies]
