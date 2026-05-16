@@ -74,16 +74,24 @@ top -p $(pgrep -f dev_smoke)
 | Var | Default | Notes |
 | --- | --- | --- |
 | `BUGGSY_WAKE_THRESHOLD` | 0.5 | Wake confidence cutoff. |
-| `BUGGSY_VAD_THRESHOLD` | 0.5 | Silero VAD; frames below this are skipped before the wake model runs. Set to `0` to disable. |
+| `BUGGSY_VAD_THRESHOLD` | 0 (off) | Silero VAD; filters false-positive wakes but is *not* a CPU gate (openWakeWord runs the model regardless). Turn on if FPs become a problem. |
 | `BUGGSY_SPEEX_NS` | 0 | Set to `1` to enable Speex noise suppression (needs `pip install speexdsp-ns` or `pip install -e robot/[speex]`). |
 | `BUGGSY_AUDIO_DEVICE` | (default) | sounddevice device index or name. |
 
-### Measured CPU baselines (Reachy Mini Wireless, CM4 4GB)
+### Measured CPU on Reachy Mini Wireless (CM4 4GB), 2026-05-16
 
-| Config | Steady-state CPU | Notes |
-| --- | --- | --- |
-| No VAD (`BUGGSY_VAD_THRESHOLD=0`) | ~33% | Initial measurement, 2026-05-16. |
-| VAD on (`BUGGSY_VAD_THRESHOLD=0.5`) | _TBD — measure after this PR_ | Target <10%. |
+`dev_smoke` steady-state: **~33% of one core** (out of 4 cores = ~8% total capacity).
+Per-component breakdown via `python -m robot.scripts.timing_probe`:
+
+| component | cpu_share (of one core) |
+| --- | --- |
+| openWakeWord preprocessor (melspec + embedding) | ~30% |
+| wake-model inference (`hey_jarvis_v0.1`) | ~1% |
+
+Judged acceptable — full CPU-budget analysis lives in the discussion on #10.
+A real CPU gate (e.g. webrtcvad before `model.predict()`) would skip the
+preprocessor on silence and cut idle CPU substantially. Revisit if camera
+streaming or battery life applies pressure.
 
 ## Editing from your mac (optional)
 
