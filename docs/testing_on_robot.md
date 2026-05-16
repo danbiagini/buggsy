@@ -121,6 +121,7 @@ the robot.
 | `BUGGSY_MOCK_MOTION` | unset | Set to `1` to skip the Reachy SDK (run on a dev mac without a robot). |
 | `BUGGSY_DAEMON_URL` | http://localhost:8000 | Reachy daemon base URL. |
 | `BUGGSY_SKIP_DAEMON_WAKE` | unset | Set to `1` to skip the daemon wake/sleep calls (e.g. if Reachy Mini Control has already woken the robot). |
+| `BUGGSY_AUDIO_DEVICE` | auto (looks for "Reachy Mini Audio") | Override sounddevice input. Pipewire's "default" device doesn't survive the SDK's `release_media`, so the agent prefers the hardware USB device by name. |
 
 Plus everything from `dev_smoke` (`BUGGSY_WAKE_MODEL`, `BUGGSY_WAKE_THRESHOLD`, etc.).
 

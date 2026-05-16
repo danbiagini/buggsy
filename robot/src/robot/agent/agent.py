@@ -46,6 +46,29 @@ DEFAULT_MODEL = "robot/wake_models/hey_jarvis_v0.1.onnx"
 DEFAULT_COOLDOWN_S = 5.0
 DEFAULT_DAEMON_URL = "http://localhost:8000"
 WAKE_SETTLE_S = 3.0  # wake_up emote takes ~2-3s; give it time before connecting
+REACHY_MIC_NAME_HINT = "Reachy Mini Audio"
+
+
+def _pick_audio_device(env_value: str | None) -> int | str | None:
+    """Resolve the input device.
+
+    - If `BUGGSY_AUDIO_DEVICE` is set, honour it verbatim.
+    - Else, scan for an input device whose name contains REACHY_MIC_NAME_HINT
+      (avoids pipewire's "default" routing, which doesn't survive the SDK's
+      release_media call cleanly).
+    - Else, return None (sounddevice picks the system default).
+    """
+    if env_value:
+        return int(env_value) if env_value.isdigit() else env_value
+    try:
+        import sounddevice as sd
+        for i, d in enumerate(sd.query_devices()):
+            if d["max_input_channels"] > 0 and REACHY_MIC_NAME_HINT in d["name"]:
+                log.info("auto-selected audio device [%d] %s", i, d["name"])
+                return i
+    except Exception as e:
+        log.warning("audio device auto-detect failed: %s", e)
+    return None
 
 
 def _daemon_post(url: str, path: str, timeout: float = 5.0) -> None:
@@ -94,10 +117,7 @@ async def main() -> None:
     use_mock = os.environ.get("BUGGSY_MOCK_MOTION") == "1"
     daemon_url = os.environ.get("BUGGSY_DAEMON_URL", DEFAULT_DAEMON_URL)
     skip_daemon_wake = os.environ.get("BUGGSY_SKIP_DAEMON_WAKE") == "1"
-    device_env = os.environ.get("BUGGSY_AUDIO_DEVICE")
-    device: int | str | None = None
-    if device_env:
-        device = int(device_env) if device_env.isdigit() else device_env
+    device = _pick_audio_device(os.environ.get("BUGGSY_AUDIO_DEVICE"))
 
     state = State.IDLE
     last_wake_ts = 0.0
