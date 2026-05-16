@@ -14,6 +14,11 @@ dependencies = [
     "openwakeword>=0.6",
 ]
 
+[project.optional-dependencies]
+# Speex noise suppression for openWakeWord — optional, helps in noisy rooms.
+# Install with: pip install -e robot/[speex]
+speex = ["speexdsp-ns"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/robot"]
 

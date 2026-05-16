@@ -21,10 +21,21 @@ log = logging.getLogger(__name__)
 
 
 class OpenWakeWordDetector:
-    def __init__(self, model_path: str, threshold: float = 0.5) -> None:
+    def __init__(
+        self,
+        model_path: str,
+        threshold: float = 0.5,
+        vad_threshold: float = 0.0,
+        enable_speex_noise_suppression: bool = False,
+    ) -> None:
         from openwakeword.model import Model
 
-        self._model = Model(wakeword_models=[model_path], inference_framework="onnx")
+        self._model = Model(
+            wakeword_models=[model_path],
+            inference_framework="onnx",
+            vad_threshold=vad_threshold,
+            enable_speex_noise_suppression=enable_speex_noise_suppression,
+        )
         self._threshold = threshold
         self.model_path = model_path
 
