@@ -69,8 +69,21 @@ In a second SSH session, measure CPU usage:
 top -p $(pgrep -f dev_smoke)
 ```
 
-Record the steady-state CPU% — that's the number that tells us whether the
-optional VAD gate is needed later.
+### Tunables (env vars)
+
+| Var | Default | Notes |
+| --- | --- | --- |
+| `BUGGSY_WAKE_THRESHOLD` | 0.5 | Wake confidence cutoff. |
+| `BUGGSY_VAD_THRESHOLD` | 0.5 | Silero VAD; frames below this are skipped before the wake model runs. Set to `0` to disable. |
+| `BUGGSY_SPEEX_NS` | 0 | Set to `1` to enable Speex noise suppression (needs `pip install speexdsp-ns` or `pip install -e robot/[speex]`). |
+| `BUGGSY_AUDIO_DEVICE` | (default) | sounddevice device index or name. |
+
+### Measured CPU baselines (Reachy Mini Wireless, CM4 4GB)
+
+| Config | Steady-state CPU | Notes |
+| --- | --- | --- |
+| No VAD (`BUGGSY_VAD_THRESHOLD=0`) | ~33% | Initial measurement, 2026-05-16. |
+| VAD on (`BUGGSY_VAD_THRESHOLD=0.5`) | _TBD — measure after this PR_ | Target <10%. |
 
 ## Editing from your mac (optional)
 
