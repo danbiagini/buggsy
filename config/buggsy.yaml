@@ -1,0 +1,24 @@
+# Buggsy configuration.
+#
+# Loaded by both the robot agent and the server orchestrator. Each side
+# consumes the fields it cares about. Env vars (BUGGSY_*) override individual
+# fields — see docs/testing_on_robot.md and docs/running_server.md.
+#
+# Override the path with BUGGSY_CONFIG=/path/to/buggsy.yaml.
+
+robot:
+  name: Buggsy
+
+wake:
+  model_path: robot/wake_models/hey_jarvis_v0.1.onnx
+  threshold: 0.5
+
+greeting:
+  source: static       # future: llm
+  static_phrase: "Hi Dan, what can I help with?"
+
+tts:
+  voice_id: en_US-amy-medium
+
+motion:
+  cooldown_seconds: 5.0

@@ -54,6 +54,7 @@ from shared.protocol import (
     SpokeDoneEvent,
     StateMessage,
     WakeEvent,
+    load_config,
 )
 
 from .audio_bus import AudioBus
@@ -63,8 +64,6 @@ from .wake_detector import OpenWakeWordDetector, run_wake_detection
 
 log = logging.getLogger("buggsy.agent")
 
-DEFAULT_MODEL = "robot/wake_models/hey_jarvis_v0.1.onnx"
-DEFAULT_COOLDOWN_S = 5.0
 DEFAULT_DAEMON_URL = "http://localhost:8000"
 DEFAULT_MQTT_HOST = "localhost"
 DEFAULT_MQTT_PORT = 1883
@@ -151,9 +150,10 @@ async def _publish_safe(client: aiomqtt.Client | None, topic: str, payload: str,
 async def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
-    model_path = os.environ.get("BUGGSY_WAKE_MODEL", DEFAULT_MODEL)
-    threshold = float(os.environ.get("BUGGSY_WAKE_THRESHOLD", "0.5"))
-    cooldown_s = float(os.environ.get("BUGGSY_COOLDOWN_S", str(DEFAULT_COOLDOWN_S)))
+    cfg = load_config()
+    model_path = os.environ.get("BUGGSY_WAKE_MODEL", cfg.wake.model_path)
+    threshold = float(os.environ.get("BUGGSY_WAKE_THRESHOLD", str(cfg.wake.threshold)))
+    cooldown_s = float(os.environ.get("BUGGSY_COOLDOWN_S", str(cfg.motion.cooldown_seconds)))
     use_mock = os.environ.get("BUGGSY_MOCK_MOTION") == "1"
     daemon_url = os.environ.get("BUGGSY_DAEMON_URL", DEFAULT_DAEMON_URL)
     skip_daemon_wake = os.environ.get("BUGGSY_SKIP_DAEMON_WAKE") == "1"

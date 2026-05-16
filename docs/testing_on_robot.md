@@ -115,9 +115,14 @@ the robot.
 
 ### Agent env vars
 
+Most defaults come from `config/buggsy.yaml` (override path with `BUGGSY_CONFIG`). Env vars below override the config per-field.
+
 | Var | Default | Notes |
 | --- | --- | --- |
-| `BUGGSY_COOLDOWN_S` | 5.0 | Seconds attentive after last wake before returning to resting. |
+| `BUGGSY_CONFIG` | `config/buggsy.yaml` | Path to the YAML config file. |
+| `BUGGSY_WAKE_MODEL` | `wake.model_path` | Path to openWakeWord .onnx model. |
+| `BUGGSY_WAKE_THRESHOLD` | `wake.threshold` | Wake confidence cutoff. |
+| `BUGGSY_COOLDOWN_S` | `motion.cooldown_seconds` | Seconds attentive after last wake before returning to resting. |
 | `BUGGSY_MOCK_MOTION` | unset | Set to `1` to skip the Reachy SDK (run on a dev mac without a robot). |
 | `BUGGSY_DAEMON_URL` | http://localhost:8000 | Reachy daemon base URL. |
 | `BUGGSY_SKIP_DAEMON_WAKE` | unset | Set to `1` to skip the daemon wake/sleep calls (e.g. if Reachy Mini Control has already woken the robot). |
