@@ -223,3 +223,9 @@ robot/wake_models/*.tflite
 
 # Buggsy: local config overrides
 *.local.yaml
+
+# Buggsy: mosquitto runtime data (persistence + logs)
+server/compose/mosquitto/data/*
+!server/compose/mosquitto/data/.gitkeep
+server/compose/mosquitto/log/*
+!server/compose/mosquitto/log/.gitkeep
