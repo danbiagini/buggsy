@@ -93,6 +93,35 @@ A real CPU gate (e.g. webrtcvad before `model.predict()`) would skip the
 preprocessor on silence and cut idle CPU substantially. Revisit if camera
 streaming or battery life applies pressure.
 
+## 6. Run the agent (wake → antennae up → cooldown → antennae down)
+
+```bash
+/venvs/apps_venv/bin/python -m robot.agent.agent
+```
+
+Then say "hey jarvis". You should see antennae raise within ~100ms; after
+5s of silence they lower again.
+
+### Trigger a fake wake (no need to speak)
+
+In a second SSH session:
+
+```bash
+kill -USR1 $(pgrep -f robot.agent.agent)
+```
+
+Same flow, on demand — useful when iterating on motion without yelling at
+the robot.
+
+### Agent env vars
+
+| Var | Default | Notes |
+| --- | --- | --- |
+| `BUGGSY_COOLDOWN_S` | 5.0 | Seconds attentive after last wake before returning to resting. |
+| `BUGGSY_MOCK_MOTION` | unset | Set to `1` to skip the Reachy SDK (run on a dev mac without a robot). |
+
+Plus everything from `dev_smoke` (`BUGGSY_WAKE_MODEL`, `BUGGSY_WAKE_THRESHOLD`, etc.).
+
 ## Editing from your mac (optional)
 
 The Pollen-recommended workflow is sshfs-mount the robot's clone:
