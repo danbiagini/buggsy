@@ -57,7 +57,7 @@ def check_openwakeword() -> bool:
     except ImportError as e:
         print(f"[FAIL] openwakeword import failed: {e}")
         return False
-    print("[OK]   openwakeword + onnxruntime import cleanly")
+    print("[OK]   openwakeword + onnxruntime import cleanly (ONNX backend)")
     return True
 
 
