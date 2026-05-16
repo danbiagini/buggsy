@@ -20,6 +20,9 @@ dependencies = [
 # Speex noise suppression for openWakeWord — optional, helps in noisy rooms.
 # Install with: pip install -e robot/[speex]
 speex = ["speexdsp-ns"]
+# Dev/test tooling — install with: pip install pytest
+# (the install.sh wrapper script doesn't pull extras; tests run on dev mac.)
+dev = ["pytest>=8"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/robot"]
@@ -27,3 +30,6 @@ packages = ["src/robot"]
 [tool.hatch.metadata]
 # Allow direct local path deps during development.
 allow-direct-references = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

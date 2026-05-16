@@ -5,6 +5,7 @@ from pydantic import BaseModel
 TOPIC_WAKE = "buggsy/events/wake"
 TOPIC_SPEAK = "buggsy/cmd/speak"
 TOPIC_SPOKE_DONE = "buggsy/events/spoke_done"
+TOPIC_MOVE = "buggsy/cmd/move"
 TOPIC_STATE = "buggsy/state"
 
 
@@ -27,3 +28,9 @@ class SpokeDoneEvent(BaseModel):
 class StateMessage(BaseModel):
     state: Literal["idle", "woken", "speaking", "cooldown"]
     ts: float
+
+
+class MoveCommand(BaseModel):
+    dataset: str
+    name: str
+    turn_id: str | None = None
