@@ -69,7 +69,7 @@ Everything tunable lives in [`config/buggsy.yaml`](config/buggsy.yaml). Both rob
 ## Verifying the scaffold
 
 ```python
-from shared.protocol import WakeDetector, TTS, GreetingSource  # noqa: F401
+from shared.protocol import WakeDetector, TTS  # noqa: F401
 ```
 
 Should import cleanly with no errors.
