@@ -27,6 +27,9 @@ class RobotConfig(BaseModel):
 class WakeConfig(BaseModel):
     model_path: str = "robot/wake_models/hey_jarvis_v0.1.onnx"
     threshold: float = 0.5
+    debounce_seconds: float = 2.0
+    vad_threshold: float = 0.0
+    enable_speex_noise_suppression: bool = False
 
 
 class GreetingConfig(BaseModel):
@@ -38,8 +41,22 @@ class TtsConfig(BaseModel):
     voice_id: str | None = None
 
 
+class MotionPose(BaseModel):
+    antenna_deg: float
+    head_pitch_deg: float = 0.0
+    duration_s: float = 0.3
+
+
 class MotionConfig(BaseModel):
     cooldown_seconds: float = 5.0
+    attentive: MotionPose = Field(default_factory=lambda: MotionPose(antenna_deg=60, head_pitch_deg=10, duration_s=0.3))
+    resting: MotionPose = Field(default_factory=lambda: MotionPose(antenna_deg=0, head_pitch_deg=0.0, duration_s=0.5))
+
+
+class AudioConfig(BaseModel):
+    output_volume: float = 1.0
+    input_device: int | str | None = None
+    output_device: int | str | None = None
 
 
 class BuggsyConfig(BaseModel):
@@ -48,6 +65,7 @@ class BuggsyConfig(BaseModel):
     greeting: GreetingConfig = Field(default_factory=GreetingConfig)
     tts: TtsConfig = Field(default_factory=TtsConfig)
     motion: MotionConfig = Field(default_factory=MotionConfig)
+    audio: AudioConfig = Field(default_factory=AudioConfig)
 
 
 def load_config(path: Path | str | None = None) -> BuggsyConfig:

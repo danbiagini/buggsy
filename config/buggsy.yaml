@@ -12,9 +12,12 @@ robot:
 wake:
   model_path: robot/wake_models/hey_jarvis_v0.1.onnx
   threshold: 0.5
+  debounce_seconds: 2.0          # min seconds between successive wake events
+  vad_threshold: 0.0             # Silero VAD; >0 filters false positives, adds CPU
+  enable_speex_noise_suppression: false   # needs `pip install speexdsp-ns`
 
 greeting:
-  source: static       # future: llm
+  source: static                  # future: llm
   static_phrase: "Hi Dan, what can I help with?"
 
 tts:
@@ -22,3 +25,15 @@ tts:
 
 motion:
   cooldown_seconds: 5.0
+  attentive:
+    antenna_deg: 60               # both antennas raised this many degrees
+    head_pitch_deg: 10            # positive = forward tilt
+    duration_s: 0.3               # interpolation duration
+  resting:
+    antenna_deg: 0
+    duration_s: 0.5
+
+audio:
+  output_volume: 1.0              # 0.0-1.0; >1.0 amplifies with clipping
+  input_device: null              # null -> auto-detect "Reachy Mini Audio"
+  output_device: null             # null -> auto-detect "reachymini_audio_sink"

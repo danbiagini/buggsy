@@ -160,8 +160,16 @@ async def main() -> None:
     mqtt_host = os.environ.get("BUGGSY_MQTT_HOST", DEFAULT_MQTT_HOST)
     mqtt_port = int(os.environ.get("BUGGSY_MQTT_PORT", str(DEFAULT_MQTT_PORT)))
     skip_mqtt = os.environ.get("BUGGSY_SKIP_MQTT") == "1"
-    device = _pick_audio_device(os.environ.get("BUGGSY_AUDIO_DEVICE"))
-    output_device = pick_output_device(os.environ.get("BUGGSY_AUDIO_OUTPUT_DEVICE"))
+    # Audio device resolution: env var > config file > auto-detect
+    input_env = os.environ.get("BUGGSY_AUDIO_DEVICE") or (
+        str(cfg.audio.input_device) if cfg.audio.input_device is not None else None
+    )
+    output_env = os.environ.get("BUGGSY_AUDIO_OUTPUT_DEVICE") or (
+        str(cfg.audio.output_device) if cfg.audio.output_device is not None else None
+    )
+    device = _pick_audio_device(input_env)
+    output_device = pick_output_device(output_env)
+    output_volume = cfg.audio.output_volume
 
     state = State.IDLE
     last_wake_ts = 0.0
@@ -170,12 +178,19 @@ async def main() -> None:
         daemon_wake_up(daemon_url)
 
     with open_mini(use_mock) as mini:
-        motion: MotionLike = MockMotion() if use_mock else Motion(mini)
+        motion: MotionLike = (
+            MockMotion() if use_mock else Motion(mini, cfg.motion.attentive, cfg.motion.resting)
+        )
         motion.resting_pose()
 
         bus = AudioBus(device=device)
         bus.start()
-        detector = OpenWakeWordDetector(model_path=model_path, threshold=threshold)
+        detector = OpenWakeWordDetector(
+            model_path=model_path,
+            threshold=threshold,
+            vad_threshold=cfg.wake.vad_threshold,
+            enable_speex_noise_suppression=cfg.wake.enable_speex_noise_suppression,
+        )
 
         async with maybe_mqtt(mqtt_host, mqtt_port, skip_mqtt) as mqtt:
 
@@ -226,7 +241,7 @@ async def main() -> None:
                         continue
                     try:
                         await asyncio.get_running_loop().run_in_executor(
-                            None, play_wav_b64, cmd.audio_b64, output_device
+                            None, play_wav_b64, cmd.audio_b64, output_device, output_volume
                         )
                     except Exception as e:
                         log.warning("playback failed: %s", e)
@@ -248,10 +263,10 @@ async def main() -> None:
                 asyncio.create_task(heartbeat(), name="heartbeat"),
                 asyncio.create_task(speak_listener(), name="speak_listener"),
             ]
-            log.info("agent ready (mock_motion=%s, mqtt=%s, cooldown=%.1fs)",
-                     use_mock, mqtt is not None, cooldown_s)
+            log.info("agent ready (mock_motion=%s, mqtt=%s, cooldown=%.1fs, vol=%.2f, vad=%.2f)",
+                     use_mock, mqtt is not None, cooldown_s, output_volume, cfg.wake.vad_threshold)
             try:
-                await run_wake_detection(bus, detector, go_attentive)
+                await run_wake_detection(bus, detector, go_attentive, debounce_s=cfg.wake.debounce_seconds)
             finally:
                 for t in tasks:
                     t.cancel()

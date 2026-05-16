@@ -57,6 +57,7 @@ async def run_wake_detection(
     on_wake: Callable[[WakeEvent], Awaitable[None]],
     debounce_s: float = 2.0,
 ) -> None:
+    """Consume frames, call on_wake on detection, debounced by debounce_s."""
     sub = bus.subscribe()
     last_wake_ts = 0.0
     async for frame in sub.frames():
