@@ -28,14 +28,18 @@ ssh pollen@reachy-mini.local
 cd /home/pollen
 git clone https://github.com/danbiagini/buggsy.git
 cd buggsy
-git checkout issue-3/wake-detection   # or main once merged
-
-# Use the Pollen-provided Python 3.12 venv
-/venvs/apps_venv/bin/pip install -e shared/ -e robot/
 
 # PortAudio (only if not already on the image)
 sudo apt install -y libportaudio2
+
+# Install via the wrapper script (handles the openwakeword/tflite workaround)
+PIP=/venvs/apps_venv/bin/pip ./robot/scripts/install.sh
 ```
+
+Why the wrapper script? `openwakeword>=0.6` hard-depends on `tflite-runtime`,
+which has no wheels for Python 3.12 / aarch64. We use the ONNX backend
+exclusively, so the script installs `openwakeword` with `--no-deps` first,
+then runs the normal editable install.
 
 ## 3. Preflight
 
