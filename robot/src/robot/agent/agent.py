@@ -64,9 +64,6 @@ from .wake_detector import OpenWakeWordDetector, run_wake_detection
 
 log = logging.getLogger("buggsy.agent")
 
-DEFAULT_DAEMON_URL = "http://localhost:8000"
-DEFAULT_MQTT_HOST = "localhost"
-DEFAULT_MQTT_PORT = 1883
 HEARTBEAT_S = 10.0
 WAKE_SETTLE_S = 3.0
 REACHY_MIC_NAME_HINT = "Reachy Mini Audio"
@@ -155,10 +152,10 @@ async def main() -> None:
     threshold = float(os.environ.get("BUGGSY_WAKE_THRESHOLD", str(cfg.wake.threshold)))
     cooldown_s = float(os.environ.get("BUGGSY_COOLDOWN_S", str(cfg.motion.cooldown_seconds)))
     use_mock = os.environ.get("BUGGSY_MOCK_MOTION") == "1"
-    daemon_url = os.environ.get("BUGGSY_DAEMON_URL", DEFAULT_DAEMON_URL)
+    daemon_url = os.environ.get("BUGGSY_DAEMON_URL", cfg.daemon.url)
     skip_daemon_wake = os.environ.get("BUGGSY_SKIP_DAEMON_WAKE") == "1"
-    mqtt_host = os.environ.get("BUGGSY_MQTT_HOST", DEFAULT_MQTT_HOST)
-    mqtt_port = int(os.environ.get("BUGGSY_MQTT_PORT", str(DEFAULT_MQTT_PORT)))
+    mqtt_host = os.environ.get("BUGGSY_MQTT_HOST", cfg.mqtt.host)
+    mqtt_port = int(os.environ.get("BUGGSY_MQTT_PORT", str(cfg.mqtt.port)))
     skip_mqtt = os.environ.get("BUGGSY_SKIP_MQTT") == "1"
     # Audio device resolution: env var > config file > auto-detect
     input_env = os.environ.get("BUGGSY_AUDIO_DEVICE") or (

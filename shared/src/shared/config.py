@@ -59,6 +59,19 @@ class AudioConfig(BaseModel):
     output_device: int | str | None = None
 
 
+class MqttConfig(BaseModel):
+    host: str = "localhost"
+    port: int = 1883
+
+
+class DaemonConfig(BaseModel):
+    url: str = "http://localhost:8000"
+
+
+class TtsServiceConfig(BaseModel):
+    url: str = "http://localhost:8001"
+
+
 class BuggsyConfig(BaseModel):
     robot: RobotConfig = Field(default_factory=RobotConfig)
     wake: WakeConfig = Field(default_factory=WakeConfig)
@@ -66,6 +79,9 @@ class BuggsyConfig(BaseModel):
     tts: TtsConfig = Field(default_factory=TtsConfig)
     motion: MotionConfig = Field(default_factory=MotionConfig)
     audio: AudioConfig = Field(default_factory=AudioConfig)
+    mqtt: MqttConfig = Field(default_factory=MqttConfig)
+    daemon: DaemonConfig = Field(default_factory=DaemonConfig)
+    tts_service: TtsServiceConfig = Field(default_factory=TtsServiceConfig)
 
 
 def load_config(path: Path | str | None = None) -> BuggsyConfig:

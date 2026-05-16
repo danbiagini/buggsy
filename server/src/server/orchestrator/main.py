@@ -103,9 +103,9 @@ async def handle_spoke_done(payload: bytes) -> None:
 
 async def serve() -> None:
     cfg = load_config()
-    host = os.environ.get("BUGGSY_MQTT_HOST", "localhost")
-    port = int(os.environ.get("BUGGSY_MQTT_PORT", "1883"))
-    tts_url = os.environ.get("BUGGSY_TTS_URL", "http://localhost:8001")
+    host = os.environ.get("BUGGSY_MQTT_HOST", cfg.mqtt.host)
+    port = int(os.environ.get("BUGGSY_MQTT_PORT", str(cfg.mqtt.port)))
+    tts_url = os.environ.get("BUGGSY_TTS_URL", cfg.tts_service.url)
     voice_id = os.environ.get("BUGGSY_VOICE_ID") or cfg.tts.voice_id
 
     if cfg.greeting.source != "static":

@@ -37,3 +37,13 @@ audio:
   output_volume: 1.0              # 0.0-1.0; >1.0 amplifies with clipping
   input_device: null              # null -> auto-detect "Reachy Mini Audio"
   output_device: null             # null -> auto-detect "reachymini_audio_sink"
+
+mqtt:
+  host: localhost                 # broker — point at your server box on the robot
+  port: 1883
+
+daemon:
+  url: http://localhost:8000      # Reachy daemon (robot-side)
+
+tts_service:
+  url: http://localhost:8001      # Piper TTS service (server-side)
