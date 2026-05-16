@@ -1,23 +1,22 @@
 # Running the Buggsy server
 
-The server side is two pieces (for now):
+The server side is three pieces:
 
 - **Mosquitto** — MQTT broker, containerized.
-- **Orchestrator** — Python service that wires events between robot and (eventually) TTS/LLM.
+- **TTS** — Piper-based HTTP service, containerized. Exposes `POST /synthesize`.
+- **Orchestrator** — Python service. On wake event: synthesizes greeting text via TTS, publishes inline base64 audio in a `SpeakCommand`.
 
-In v1 the orchestrator is a dummy that just replies to wake events with a placeholder speak command. #6 adds real TTS.
-
-## Bring up the broker
+## Bring up the broker + TTS
 
 ```bash
 cd server/compose
-docker compose up -d
-docker logs -f buggsy-mosquitto    # tail to verify
+docker compose up -d --build       # --build first time, or after editing tts/
+docker logs -f buggsy-mosquitto
+docker logs -f buggsy-tts
 ```
 
-This runs `eclipse-mosquitto:2` on `0.0.0.0:1883` with anonymous auth (LAN-only assumption for v1 — add `password_file` + TLS before exposing externally).
-
-Persistence and logs are bind-mounted under `server/compose/mosquitto/{data,log}/` so retained messages survive container restarts.
+- Mosquitto: `eclipse-mosquitto:2` on `0.0.0.0:1883`. Anonymous v1 (LAN-only assumption — add `password_file` + TLS before exposing). Persistence and logs bind-mounted under `mosquitto/{data,log}/`.
+- TTS: Piper FastAPI on `0.0.0.0:8001`. Voice (`en_US-amy-medium`, ~63MB) baked into the image at build time. Health check: `curl http://localhost:8001/health`.
 
 ## Run the orchestrator
 
@@ -34,6 +33,8 @@ Env vars:
 | --- | --- | --- |
 | `BUGGSY_MQTT_HOST` | localhost | Broker host |
 | `BUGGSY_MQTT_PORT` | 1883 | Broker port |
+| `BUGGSY_TTS_URL` | http://localhost:8001 | TTS service base URL |
+| `BUGGSY_VOICE_ID` | (server default) | Voice to request from TTS |
 
 The orchestrator will auto-reconnect on broker disconnect.
 
@@ -45,8 +46,10 @@ The orchestrator will auto-reconnect on broker disconnect.
 
 Expected:
 - Robot logs `WAKE confidence=...`
-- Orchestrator logs `wake received: confidence=...` then `published placeholder speak command`
-- Robot logs `SPEAK received: text='(placeholder greeting — TTS arrives in #6)'`
+- Orchestrator logs `wake received: ...` then `published speak: NNN bytes audio`
+- Robot logs `SPEAK received: text='Hi Dan, ...' audio=inline` and `audio_out: playing ... frames`
+- You **hear the greeting** from the Reachy speaker
+- Orchestrator logs `robot finished speaking ...` (spoke_done)
 - Orchestrator logs robot state every 10s (retained heartbeat)
 
 ## Inspecting topics
