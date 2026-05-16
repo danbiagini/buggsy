@@ -122,6 +122,11 @@ the robot.
 | `BUGGSY_DAEMON_URL` | http://localhost:8000 | Reachy daemon base URL. |
 | `BUGGSY_SKIP_DAEMON_WAKE` | unset | Set to `1` to skip the daemon wake/sleep calls (e.g. if Reachy Mini Control has already woken the robot). |
 | `BUGGSY_AUDIO_DEVICE` | auto (looks for "Reachy Mini Audio") | Override sounddevice input. Pipewire's "default" device doesn't survive the SDK's `release_media`, so the agent prefers the hardware USB device by name. |
+| `BUGGSY_MQTT_HOST` | localhost | Broker host. Point at your server box when running for real. |
+| `BUGGSY_MQTT_PORT` | 1883 | Broker port. |
+| `BUGGSY_SKIP_MQTT` | unset | Set to `1` to run without MQTT (no remote events). |
+
+See [running_server.md](running_server.md) for the broker + orchestrator side.
 
 Plus everything from `dev_smoke` (`BUGGSY_WAKE_MODEL`, `BUGGSY_WAKE_THRESHOLD`, etc.).
 
