@@ -26,6 +26,7 @@ import aiomqtt
 import httpx
 
 from shared.protocol import (
+    GreetingSource,
     TOPIC_SPEAK,
     TOPIC_SPOKE_DONE,
     TOPIC_STATE,
@@ -34,11 +35,13 @@ from shared.protocol import (
     SpokeDoneEvent,
     StateMessage,
     WakeEvent,
+    load_config,
 )
+
+from .greeting import StaticGreetingSource
 
 log = logging.getLogger("buggsy.orchestrator")
 
-GREETING_TEXT = "Hi Dan, what can I help with?"
 TTS_TIMEOUT_S = 15.0
 
 
@@ -56,6 +59,7 @@ async def handle_wake(
     http: httpx.AsyncClient,
     tts_url: str,
     voice_id: str | None,
+    greeter: GreetingSource,
     payload: bytes,
 ) -> None:
     try:
@@ -64,7 +68,7 @@ async def handle_wake(
         log.warning("bad wake payload: %s", e)
         return
     log.info("wake received: confidence=%.3f ts=%.3f", evt.confidence, evt.ts)
-    text = GREETING_TEXT
+    text = await greeter.get_greeting()
     try:
         audio = await synthesize(http, tts_url, text, voice_id)
     except (httpx.HTTPError, OSError) as e:
@@ -98,11 +102,18 @@ async def handle_spoke_done(payload: bytes) -> None:
 
 
 async def serve() -> None:
-    host = os.environ.get("BUGGSY_MQTT_HOST", "localhost")
-    port = int(os.environ.get("BUGGSY_MQTT_PORT", "1883"))
-    tts_url = os.environ.get("BUGGSY_TTS_URL", "http://localhost:8001")
-    voice_id = os.environ.get("BUGGSY_VOICE_ID") or None
-    log.info("orchestrator config: mqtt=%s:%d tts=%s voice=%s", host, port, tts_url, voice_id)
+    cfg = load_config()
+    host = os.environ.get("BUGGSY_MQTT_HOST", cfg.mqtt.host)
+    port = int(os.environ.get("BUGGSY_MQTT_PORT", str(cfg.mqtt.port)))
+    tts_url = os.environ.get("BUGGSY_TTS_URL", cfg.tts_service.url)
+    voice_id = os.environ.get("BUGGSY_VOICE_ID") or cfg.tts.voice_id
+
+    if cfg.greeting.source != "static":
+        log.warning("greeting source %r not implemented yet — falling back to static", cfg.greeting.source)
+    greeter: GreetingSource = StaticGreetingSource(cfg.greeting.static_phrase)
+
+    log.info("orchestrator config: mqtt=%s:%d tts=%s voice=%s greeting=%r",
+             host, port, tts_url, voice_id, cfg.greeting.static_phrase)
 
     async with httpx.AsyncClient() as http:
         while True:
@@ -115,7 +126,7 @@ async def serve() -> None:
                     async for msg in client.messages:
                         topic = msg.topic.value
                         if topic == TOPIC_WAKE:
-                            await handle_wake(client, http, tts_url, voice_id, msg.payload)
+                            await handle_wake(client, http, tts_url, voice_id, greeter, msg.payload)
                         elif topic == TOPIC_STATE:
                             await handle_state(msg.payload)
                         elif topic == TOPIC_SPOKE_DONE:

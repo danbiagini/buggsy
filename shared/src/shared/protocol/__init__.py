@@ -1,3 +1,4 @@
+from ..config import BuggsyConfig, load_config
 from .interfaces import GreetingSource, TTS, WakeDetector
 from .mqtt_topics import (
     TOPIC_SPEAK,
@@ -11,6 +12,7 @@ from .mqtt_topics import (
 )
 
 __all__ = [
+    "BuggsyConfig",
     "GreetingSource",
     "TTS",
     "WakeDetector",
@@ -22,4 +24,5 @@ __all__ = [
     "SpokeDoneEvent",
     "StateMessage",
     "WakeEvent",
+    "load_config",
 ]

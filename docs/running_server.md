@@ -34,9 +34,17 @@ Env vars:
 | `BUGGSY_MQTT_HOST` | localhost | Broker host |
 | `BUGGSY_MQTT_PORT` | 1883 | Broker port |
 | `BUGGSY_TTS_URL` | http://localhost:8001 | TTS service base URL |
-| `BUGGSY_VOICE_ID` | (server default) | Voice to request from TTS |
+| `BUGGSY_VOICE_ID` | from config | Voice to request from TTS (overrides `tts.voice_id` in config) |
+| `BUGGSY_CONFIG` | `config/buggsy.yaml` | Path to the YAML config file |
 
 The orchestrator will auto-reconnect on broker disconnect.
+
+## Config file
+
+Both orchestrator and robot agent read `config/buggsy.yaml` (override with `BUGGSY_CONFIG`). Env vars override individual fields. See the [example file](../config/buggsy.yaml) for the schema; key orchestrator fields:
+
+- `greeting.static_phrase` — what Buggsy says on wake (until #-future LLM source lands).
+- `tts.voice_id` — default Piper voice (override per request later).
 
 ## End-to-end smoke (broker + orchestrator + robot)
 

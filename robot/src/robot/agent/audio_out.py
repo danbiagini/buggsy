@@ -81,7 +81,15 @@ def _device_samplerate(device: int | str | None) -> int | None:
         return None
 
 
-def play_wav_b64(audio_b64: str, device: int | str | None = None) -> None:
+def _apply_volume(data: np.ndarray, volume: float) -> np.ndarray:
+    if volume == 1.0:
+        return data
+    info = np.iinfo(data.dtype)
+    scaled = data.astype(np.float32) * volume
+    return np.clip(scaled, info.min, info.max).astype(data.dtype)
+
+
+def play_wav_b64(audio_b64: str, device: int | str | None = None, volume: float = 1.0) -> None:
     audio_bytes = base64.b64decode(audio_b64)
     data, sr = _decode_wav(audio_bytes)
 
@@ -91,5 +99,8 @@ def play_wav_b64(audio_b64: str, device: int | str | None = None) -> None:
         data = _resample(data, sr, target_sr)
         sr = target_sr
 
-    log.info("audio_out: playing %d frames at %d Hz (device=%s)", len(data), sr, device)
+    if volume != 1.0:
+        data = _apply_volume(data, volume)
+
+    log.info("audio_out: playing %d frames at %d Hz (device=%s, vol=%.2f)", len(data), sr, device, volume)
     sd.play(data, samplerate=sr, device=device, blocking=True)

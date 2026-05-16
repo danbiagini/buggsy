@@ -1,0 +1,59 @@
+# Buggsy configuration.
+#
+# Loaded by both the robot agent and the server orchestrator. Each side
+# consumes the fields it cares about; missing fields fall back to defaults
+# baked into shared/config.py. Env vars (BUGGSY_*) override individual
+# fields — see docs/testing_on_robot.md and docs/running_server.md.
+#
+# Override the config file path with BUGGSY_CONFIG=/path/to/buggsy.yaml.
+
+
+# ─── Shared (used by both robot and server) ─────────────────────────────
+
+robot:
+  name: Buggsy
+
+mqtt:
+  host: localhost                 # broker — point at your server box from the robot
+  port: 1883
+
+
+# ─── Robot only ─────────────────────────────────────────────────────────
+
+wake:
+  model_path: robot/wake_models/hey_jarvis_v0.1.onnx
+  threshold: 0.5
+  debounce_seconds: 2.0           # min seconds between successive wake events
+  vad_threshold: 0.0              # Silero VAD; >0 filters false positives, adds CPU
+  enable_speex_noise_suppression: false   # needs `pip install speexdsp-ns`
+
+motion:
+  cooldown_seconds: 5.0
+  attentive:
+    antenna_deg: 60               # both antennas raised this many degrees
+    head_pitch_deg: 10            # positive = forward tilt
+    duration_s: 0.3               # interpolation duration
+  resting:
+    antenna_deg: 0
+    duration_s: 0.5
+
+audio:
+  output_volume: 1.0              # 0.0-1.0; >1.0 amplifies with clipping
+  input_device: null              # null -> auto-detect "Reachy Mini Audio"
+  output_device: null             # null -> auto-detect "reachymini_audio_sink"
+
+daemon:
+  url: http://localhost:8000      # Reachy Mini daemon HTTP API
+
+
+# ─── Server only ────────────────────────────────────────────────────────
+
+greeting:
+  source: static                  # future: llm
+  static_phrase: "Hi Dan, what can I help with?"
+
+tts:
+  voice_id: en_US-amy-medium
+
+tts_service:
+  url: http://localhost:8001      # Piper TTS service (the orchestrator calls this)
