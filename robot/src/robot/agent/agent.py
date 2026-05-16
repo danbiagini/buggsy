@@ -171,9 +171,6 @@ async def main() -> None:
     state = State.IDLE
     last_wake_ts = 0.0
 
-    if not use_mock and not skip_daemon_wake:
-        daemon_wake_up(daemon_url)
-
     with open_mini(use_mock) as mini:
         motion: MotionLike = (
             MockMotion() if use_mock else Motion(mini, cfg.motion.attentive, cfg.motion.resting)
@@ -260,6 +257,14 @@ async def main() -> None:
                 asyncio.create_task(heartbeat(), name="heartbeat"),
                 asyncio.create_task(speak_listener(), name="speak_listener"),
             ]
+
+            # Wake the robot only once mic + MQTT are live, so the visual cue
+            # (antennae raise, head lift) is a true "I'm listening" signal.
+            # to_thread keeps the ~3s settle from blocking the event loop —
+            # the heartbeat / speak_listener tasks above stay responsive.
+            if not use_mock and not skip_daemon_wake:
+                await asyncio.to_thread(daemon_wake_up, daemon_url)
+
             log.info("agent ready (mock_motion=%s, mqtt=%s, cooldown=%.1fs, vol=%.2f, vad=%.2f)",
                      use_mock, mqtt is not None, cooldown_s, output_volume, cfg.wake.vad_threshold)
             try:
