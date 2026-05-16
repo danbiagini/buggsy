@@ -9,6 +9,9 @@ description = "Buggsy agent that runs on the Reachy Mini Wireless."
 requires-python = ">=3.12"
 dependencies = [
     "buggsy-shared",
+    "sounddevice>=0.4",
+    "numpy>=1.26",
+    "openwakeword>=0.6",
 ]
 
 [tool.hatch.build.targets.wheel]
