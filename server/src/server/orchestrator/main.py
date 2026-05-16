@@ -1,9 +1,9 @@
 """Buggsy orchestrator.
 
-On wake event, fetches a greeting text, synthesizes it via the TTS service,
-and publishes a SpeakCommand with the inline base64 audio.
-
-Greeting text is hardcoded for now (config comes in #7).
+On wake event, asks the planner for tool calls and dispatches them
+through the skill framework. v2 starts with `StubPlanner` →
+`SaySkill` (functionally equivalent to v1's hardcoded greeting); the
+LLM-backed planner lands in #25.
 
 Usage:
     python -m server.orchestrator
@@ -18,48 +18,34 @@ Env vars:
 from __future__ import annotations
 
 import asyncio
-import base64
 import logging
 import os
+import uuid
 
 import aiomqtt
 import httpx
 
 from shared.protocol import (
-    GreetingSource,
-    TOPIC_SPEAK,
     TOPIC_SPOKE_DONE,
     TOPIC_STATE,
     TOPIC_WAKE,
-    SpeakCommand,
     SpokeDoneEvent,
     StateMessage,
     WakeEvent,
     load_config,
 )
 
-from .greeting import StaticGreetingSource
+from .planner import Planner, StubPlanner
+from .skills import SaySkill, SkillContext, SkillRegistry, dispatch
 
 log = logging.getLogger("buggsy.orchestrator")
-
-TTS_TIMEOUT_S = 15.0
-
-
-async def synthesize(http: httpx.AsyncClient, tts_url: str, text: str, voice_id: str | None) -> bytes:
-    payload: dict[str, str | None] = {"text": text}
-    if voice_id:
-        payload["voice_id"] = voice_id
-    r = await http.post(f"{tts_url}/synthesize", json=payload, timeout=TTS_TIMEOUT_S)
-    r.raise_for_status()
-    return r.content
 
 
 async def handle_wake(
     client: aiomqtt.Client,
     http: httpx.AsyncClient,
-    tts_url: str,
-    voice_id: str | None,
-    greeter: GreetingSource,
+    registry: SkillRegistry,
+    planner: Planner,
     payload: bytes,
 ) -> None:
     try:
@@ -67,20 +53,12 @@ async def handle_wake(
     except Exception as e:
         log.warning("bad wake payload: %s", e)
         return
-    log.info("wake received: confidence=%.3f ts=%.3f", evt.confidence, evt.ts)
-    text = await greeter.get_greeting()
-    try:
-        audio = await synthesize(http, tts_url, text, voice_id)
-    except (httpx.HTTPError, OSError) as e:
-        log.error("TTS request failed: %s — sending speak with no audio", e)
-        audio = b""
-    cmd = SpeakCommand(
-        text=text,
-        audio_b64=base64.b64encode(audio).decode("ascii") if audio else None,
-        voice_id=voice_id,
-    )
-    await client.publish(TOPIC_SPEAK, cmd.model_dump_json())
-    log.info("published speak: %d bytes audio", len(audio))
+    turn_id = uuid.uuid4().hex[:8]
+    log.info("[turn=%s] wake received: confidence=%.3f ts=%.3f",
+             turn_id, evt.confidence, evt.ts)
+    calls = await planner.plan()
+    ctx = SkillContext(mqtt=client, http=http, turn_id=turn_id)
+    await dispatch(calls, registry, ctx)
 
 
 async def handle_state(payload: bytes) -> None:
@@ -109,11 +87,14 @@ async def serve() -> None:
     voice_id = os.environ.get("BUGGSY_VOICE_ID") or cfg.tts.voice_id
 
     if cfg.greeting.source != "static":
-        log.warning("greeting source %r not implemented yet — falling back to static", cfg.greeting.source)
-    greeter: GreetingSource = StaticGreetingSource(cfg.greeting.static_phrase)
+        log.warning("greeting.source %r not yet implemented — using StubPlanner",
+                    cfg.greeting.source)
 
-    log.info("orchestrator config: mqtt=%s:%d tts=%s voice=%s greeting=%r",
-             host, port, tts_url, voice_id, cfg.greeting.static_phrase)
+    registry = SkillRegistry([SaySkill(tts_url=tts_url, voice_id=voice_id)])
+    planner: Planner = StubPlanner(cfg.greeting.static_phrase)
+
+    log.info("orchestrator config: mqtt=%s:%d tts=%s voice=%s skills=%s phrase=%r",
+             host, port, tts_url, voice_id, registry.names(), cfg.greeting.static_phrase)
 
     async with httpx.AsyncClient() as http:
         while True:
@@ -126,7 +107,7 @@ async def serve() -> None:
                     async for msg in client.messages:
                         topic = msg.topic.value
                         if topic == TOPIC_WAKE:
-                            await handle_wake(client, http, tts_url, voice_id, greeter, msg.payload)
+                            await handle_wake(client, http, registry, planner, msg.payload)
                         elif topic == TOPIC_STATE:
                             await handle_state(msg.payload)
                         elif topic == TOPIC_SPOKE_DONE:

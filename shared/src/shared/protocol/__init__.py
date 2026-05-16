@@ -1,5 +1,5 @@
 from ..config import BuggsyConfig, load_config
-from .interfaces import GreetingSource, TTS, WakeDetector
+from .interfaces import TTS, WakeDetector
 from .mqtt_topics import (
     TOPIC_SPEAK,
     TOPIC_SPOKE_DONE,
@@ -13,7 +13,6 @@ from .mqtt_topics import (
 
 __all__ = [
     "BuggsyConfig",
-    "GreetingSource",
     "TTS",
     "WakeDetector",
     "TOPIC_SPEAK",
