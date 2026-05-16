@@ -9,3 +9,12 @@ services:
       - ./mosquitto/config:/mosquitto/config:ro
       - ./mosquitto/data:/mosquitto/data
       - ./mosquitto/log:/mosquitto/log
+
+  tts:
+    build:
+      context: ../tts
+      dockerfile: Dockerfile
+    container_name: buggsy-tts
+    restart: unless-stopped
+    ports:
+      - "8001:8001"

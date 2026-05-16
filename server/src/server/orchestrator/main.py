@@ -1,24 +1,29 @@
-"""Buggsy orchestrator — v1 dummy.
+"""Buggsy orchestrator.
 
-Subscribes to wake events, logs them, and replies with a placeholder speak
-command. TTS comes online in #6.
+On wake event, fetches a greeting text, synthesizes it via the TTS service,
+and publishes a SpeakCommand with the inline base64 audio.
+
+Greeting text is hardcoded for now (config comes in #7).
 
 Usage:
     python -m server.orchestrator
 
 Env vars:
-    BUGGSY_MQTT_HOST  Broker host. Default: localhost
-    BUGGSY_MQTT_PORT  Broker port. Default: 1883
+    BUGGSY_MQTT_HOST   Broker host. Default: localhost
+    BUGGSY_MQTT_PORT   Broker port. Default: 1883
+    BUGGSY_TTS_URL     TTS service base URL. Default: http://localhost:8001
+    BUGGSY_VOICE_ID    Voice to request from TTS. Default: (server default)
 """
 
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
 import os
-import time
 
 import aiomqtt
+import httpx
 
 from shared.protocol import (
     TOPIC_SPEAK,
@@ -33,19 +38,45 @@ from shared.protocol import (
 
 log = logging.getLogger("buggsy.orchestrator")
 
-PLACEHOLDER_GREETING = "(placeholder greeting — TTS arrives in #6)"
+GREETING_TEXT = "Hi Dan, what can I help with?"
+TTS_TIMEOUT_S = 15.0
 
 
-async def handle_wake(client: aiomqtt.Client, payload: bytes) -> None:
+async def synthesize(http: httpx.AsyncClient, tts_url: str, text: str, voice_id: str | None) -> bytes:
+    payload: dict[str, str | None] = {"text": text}
+    if voice_id:
+        payload["voice_id"] = voice_id
+    r = await http.post(f"{tts_url}/synthesize", json=payload, timeout=TTS_TIMEOUT_S)
+    r.raise_for_status()
+    return r.content
+
+
+async def handle_wake(
+    client: aiomqtt.Client,
+    http: httpx.AsyncClient,
+    tts_url: str,
+    voice_id: str | None,
+    payload: bytes,
+) -> None:
     try:
         evt = WakeEvent.model_validate_json(payload)
     except Exception as e:
         log.warning("bad wake payload: %s", e)
         return
     log.info("wake received: confidence=%.3f ts=%.3f", evt.confidence, evt.ts)
-    cmd = SpeakCommand(text=PLACEHOLDER_GREETING)
+    text = GREETING_TEXT
+    try:
+        audio = await synthesize(http, tts_url, text, voice_id)
+    except (httpx.HTTPError, OSError) as e:
+        log.error("TTS request failed: %s — sending speak with no audio", e)
+        audio = b""
+    cmd = SpeakCommand(
+        text=text,
+        audio_b64=base64.b64encode(audio).decode("ascii") if audio else None,
+        voice_id=voice_id,
+    )
     await client.publish(TOPIC_SPEAK, cmd.model_dump_json())
-    log.info("published placeholder speak command")
+    log.info("published speak: %d bytes audio", len(audio))
 
 
 async def handle_state(payload: bytes) -> None:
@@ -69,26 +100,29 @@ async def handle_spoke_done(payload: bytes) -> None:
 async def serve() -> None:
     host = os.environ.get("BUGGSY_MQTT_HOST", "localhost")
     port = int(os.environ.get("BUGGSY_MQTT_PORT", "1883"))
-    log.info("connecting to mqtt://%s:%d", host, port)
+    tts_url = os.environ.get("BUGGSY_TTS_URL", "http://localhost:8001")
+    voice_id = os.environ.get("BUGGSY_VOICE_ID") or None
+    log.info("orchestrator config: mqtt=%s:%d tts=%s voice=%s", host, port, tts_url, voice_id)
 
-    while True:
-        try:
-            async with aiomqtt.Client(host, port=port) as client:
-                log.info("connected")
-                await client.subscribe(TOPIC_WAKE)
-                await client.subscribe(TOPIC_STATE)
-                await client.subscribe(TOPIC_SPOKE_DONE)
-                async for msg in client.messages:
-                    topic = msg.topic.value
-                    if topic == TOPIC_WAKE:
-                        await handle_wake(client, msg.payload)
-                    elif topic == TOPIC_STATE:
-                        await handle_state(msg.payload)
-                    elif topic == TOPIC_SPOKE_DONE:
-                        await handle_spoke_done(msg.payload)
-        except aiomqtt.MqttError as e:
-            log.warning("mqtt connection lost: %s — reconnecting in 5s", e)
-            await asyncio.sleep(5)
+    async with httpx.AsyncClient() as http:
+        while True:
+            try:
+                async with aiomqtt.Client(host, port=port) as client:
+                    log.info("mqtt connected")
+                    await client.subscribe(TOPIC_WAKE)
+                    await client.subscribe(TOPIC_STATE)
+                    await client.subscribe(TOPIC_SPOKE_DONE)
+                    async for msg in client.messages:
+                        topic = msg.topic.value
+                        if topic == TOPIC_WAKE:
+                            await handle_wake(client, http, tts_url, voice_id, msg.payload)
+                        elif topic == TOPIC_STATE:
+                            await handle_state(msg.payload)
+                        elif topic == TOPIC_SPOKE_DONE:
+                            await handle_spoke_done(msg.payload)
+            except aiomqtt.MqttError as e:
+                log.warning("mqtt connection lost: %s — reconnecting in 5s", e)
+                await asyncio.sleep(5)
 
 
 def run() -> None:

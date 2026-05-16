@@ -28,6 +28,7 @@ Env vars:
     BUGGSY_MQTT_HOST        Broker host. Default: localhost
     BUGGSY_MQTT_PORT        Broker port. Default: 1883
     BUGGSY_SKIP_MQTT        Set to 1 to run without MQTT (no remote events).
+    BUGGSY_AUDIO_OUTPUT_DEVICE  sounddevice output device. Auto-detects Reachy speaker.
 """
 
 from __future__ import annotations
@@ -46,14 +47,17 @@ import aiomqtt
 
 from shared.protocol import (
     TOPIC_SPEAK,
+    TOPIC_SPOKE_DONE,
     TOPIC_STATE,
     TOPIC_WAKE,
     SpeakCommand,
+    SpokeDoneEvent,
     StateMessage,
     WakeEvent,
 )
 
 from .audio_bus import AudioBus
+from .audio_out import pick_output_device, play_wav_b64
 from .motion import MockMotion, Motion, MotionLike
 from .wake_detector import OpenWakeWordDetector, run_wake_detection
 
@@ -157,6 +161,7 @@ async def main() -> None:
     mqtt_port = int(os.environ.get("BUGGSY_MQTT_PORT", str(DEFAULT_MQTT_PORT)))
     skip_mqtt = os.environ.get("BUGGSY_SKIP_MQTT") == "1"
     device = _pick_audio_device(os.environ.get("BUGGSY_AUDIO_DEVICE"))
+    output_device = pick_output_device(os.environ.get("BUGGSY_AUDIO_OUTPUT_DEVICE"))
 
     state = State.IDLE
     last_wake_ts = 0.0
@@ -216,6 +221,19 @@ async def main() -> None:
                     log.info("SPEAK received: text=%r voice_id=%r audio=%s",
                              cmd.text, cmd.voice_id,
                              "inline" if cmd.audio_b64 else (cmd.audio_url or "none"))
+                    if not cmd.audio_b64:
+                        log.warning("speak with no inline audio — skipping playback")
+                        continue
+                    try:
+                        await asyncio.get_running_loop().run_in_executor(
+                            None, play_wav_b64, cmd.audio_b64, output_device
+                        )
+                    except Exception as e:
+                        log.warning("playback failed: %s", e)
+                    asyncio.create_task(_publish_safe(
+                        mqtt, TOPIC_SPOKE_DONE,
+                        SpokeDoneEvent(ts=time.time()).model_dump_json(),
+                    ))
 
             loop = asyncio.get_running_loop()
 

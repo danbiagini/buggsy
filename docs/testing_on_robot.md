@@ -125,8 +125,9 @@ the robot.
 | `BUGGSY_MQTT_HOST` | localhost | Broker host. Point at your server box when running for real. |
 | `BUGGSY_MQTT_PORT` | 1883 | Broker port. |
 | `BUGGSY_SKIP_MQTT` | unset | Set to `1` to run without MQTT (no remote events). |
+| `BUGGSY_AUDIO_OUTPUT_DEVICE` | auto (Reachy Mini Audio) | Override sounddevice output device for TTS playback. |
 
-See [running_server.md](running_server.md) for the broker + orchestrator side.
+See [running_server.md](running_server.md) for the broker + TTS + orchestrator side.
 
 Plus everything from `dev_smoke` (`BUGGSY_WAKE_MODEL`, `BUGGSY_WAKE_THRESHOLD`, etc.).
 
