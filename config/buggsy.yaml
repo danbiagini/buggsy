@@ -17,6 +17,12 @@ mqtt:
   host: localhost                 # broker — point at your server box from the robot
   port: 1883
 
+daemon:
+  url: http://localhost:8000      # Reachy Mini daemon HTTP API.
+                                  # Robot: localhost is correct (daemon runs on the robot).
+                                  # Server: override to the robot's hostname,
+                                  #   e.g. BUGGSY_CONFIG=... or BUGGSY_DAEMON_URL=http://reachy-mini.local:8000
+
 
 # ─── Robot only ─────────────────────────────────────────────────────────
 
@@ -42,9 +48,6 @@ audio:
   input_device: null              # null -> auto-detect "Reachy Mini Audio"
   output_device: null             # null -> auto-detect "reachymini_audio_sink"
 
-daemon:
-  url: http://localhost:8000      # Reachy Mini daemon HTTP API
-
 
 # ─── Server only ────────────────────────────────────────────────────────
 
@@ -57,3 +60,18 @@ tts:
 
 tts_service:
   url: http://localhost:8001      # Piper TTS service (the orchestrator calls this)
+
+moves:
+  # Recorded-move datasets the orchestrator asks the daemon to enumerate.
+  datasets:
+    - pollen-robotics/reachy-mini-dances-library
+    - pollen-robotics/reachy-mini-emotions-library
+  # Per-move descriptions the LLM planner sees. Keys are "{dataset}/{move}".
+  # Discover real move names with:
+  #   python -m server.tools.refresh_move_catalog
+  # Only moves listed here are selectable by the planner (intersected with
+  # what the daemon reports). Unlisted moves are logged at startup so you
+  # know what to fill in.
+  descriptions: {}
+  cache_path: ~/.cache/buggsy/move_catalog.json   # disk fallback when daemon is unreachable
+  refresh_seconds: 30.0                            # retry interval for background fetch in say-only mode

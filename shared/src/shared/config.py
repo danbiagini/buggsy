@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 log = logging.getLogger(__name__)
 
@@ -72,6 +72,31 @@ class TtsServiceConfig(BaseModel):
     url: str = "http://localhost:8001"
 
 
+def _default_cache_path() -> Path:
+    return Path("~/.cache/buggsy/move_catalog.json").expanduser()
+
+
+class MovesConfig(BaseModel):
+    datasets: list[str] = Field(
+        default_factory=lambda: [
+            "pollen-robotics/reachy-mini-dances-library",
+            "pollen-robotics/reachy-mini-emotions-library",
+        ]
+    )
+    # Keys are "{dataset}/{move}", values are one-line descriptions used in
+    # the LLM tool spec. Run `python -m server.tools.refresh_move_catalog`
+    # against a live daemon to discover real move names, then fill in.
+    descriptions: dict[str, str] = Field(default_factory=dict)
+    cache_path: Path = Field(default_factory=_default_cache_path)
+    # Background retry interval when the daemon was unreachable at startup.
+    refresh_seconds: float = 30.0
+
+    @field_validator("cache_path", mode="before")
+    @classmethod
+    def _expand_cache_path(cls, v):
+        return Path(v).expanduser() if v is not None else v
+
+
 class BuggsyConfig(BaseModel):
     robot: RobotConfig = Field(default_factory=RobotConfig)
     wake: WakeConfig = Field(default_factory=WakeConfig)
@@ -82,6 +107,7 @@ class BuggsyConfig(BaseModel):
     mqtt: MqttConfig = Field(default_factory=MqttConfig)
     daemon: DaemonConfig = Field(default_factory=DaemonConfig)
     tts_service: TtsServiceConfig = Field(default_factory=TtsServiceConfig)
+    moves: MovesConfig = Field(default_factory=MovesConfig)
 
 
 def load_config(path: Path | str | None = None) -> BuggsyConfig:

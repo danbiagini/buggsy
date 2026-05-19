@@ -35,6 +35,7 @@ from shared.protocol import (
     load_config,
 )
 
+from .move_catalog import MoveCatalog
 from .planner import Planner, StubPlanner
 from .skills import PlayMoveSkill, SaySkill, SkillContext, SkillRegistry, dispatch
 
@@ -85,39 +86,54 @@ async def serve() -> None:
     port = int(os.environ.get("BUGGSY_MQTT_PORT", str(cfg.mqtt.port)))
     tts_url = os.environ.get("BUGGSY_TTS_URL", cfg.tts_service.url)
     voice_id = os.environ.get("BUGGSY_VOICE_ID") or cfg.tts.voice_id
+    daemon_url = os.environ.get("BUGGSY_DAEMON_URL", cfg.daemon.url)
 
     if cfg.greeting.source != "static":
         log.warning("greeting.source %r not yet implemented — using StubPlanner",
                     cfg.greeting.source)
 
-    registry = SkillRegistry([
-        SaySkill(tts_url=tts_url, voice_id=voice_id),
-        PlayMoveSkill(),
-    ])
     planner: Planner = StubPlanner(cfg.greeting.static_phrase)
 
-    log.info("orchestrator config: mqtt=%s:%d tts=%s voice=%s skills=%s phrase=%r",
-             host, port, tts_url, voice_id, registry.names(), cfg.greeting.static_phrase)
+    log.info("orchestrator config: mqtt=%s:%d tts=%s voice=%s daemon=%s phrase=%r",
+             host, port, tts_url, voice_id, daemon_url, cfg.greeting.static_phrase)
 
     async with httpx.AsyncClient() as http:
-        while True:
-            try:
-                async with aiomqtt.Client(host, port=port) as client:
-                    log.info("mqtt connected")
-                    await client.subscribe(TOPIC_WAKE)
-                    await client.subscribe(TOPIC_STATE)
-                    await client.subscribe(TOPIC_SPOKE_DONE)
-                    async for msg in client.messages:
-                        topic = msg.topic.value
-                        if topic == TOPIC_WAKE:
-                            await handle_wake(client, http, registry, planner, msg.payload)
-                        elif topic == TOPIC_STATE:
-                            await handle_state(msg.payload)
-                        elif topic == TOPIC_SPOKE_DONE:
-                            await handle_spoke_done(msg.payload)
-            except aiomqtt.MqttError as e:
-                log.warning("mqtt connection lost: %s — reconnecting in 5s", e)
-                await asyncio.sleep(5)
+        catalog = MoveCatalog(
+            datasets=cfg.moves.datasets,
+            descriptions=cfg.moves.descriptions,
+            cache_path=cfg.moves.cache_path,
+            refresh_seconds=cfg.moves.refresh_seconds,
+            http=http,
+        )
+        await catalog.start(daemon_url)
+
+        registry = SkillRegistry([
+            SaySkill(tts_url=tts_url, voice_id=voice_id),
+            PlayMoveSkill(catalog=catalog),
+        ])
+        log.info("registered skills: %s", registry.names())
+
+        try:
+            while True:
+                try:
+                    async with aiomqtt.Client(host, port=port) as client:
+                        log.info("mqtt connected")
+                        await client.subscribe(TOPIC_WAKE)
+                        await client.subscribe(TOPIC_STATE)
+                        await client.subscribe(TOPIC_SPOKE_DONE)
+                        async for msg in client.messages:
+                            topic = msg.topic.value
+                            if topic == TOPIC_WAKE:
+                                await handle_wake(client, http, registry, planner, msg.payload)
+                            elif topic == TOPIC_STATE:
+                                await handle_state(msg.payload)
+                            elif topic == TOPIC_SPOKE_DONE:
+                                await handle_spoke_done(msg.payload)
+                except aiomqtt.MqttError as e:
+                    log.warning("mqtt connection lost: %s — reconnecting in 5s", e)
+                    await asyncio.sleep(5)
+        finally:
+            await catalog.stop()
 
 
 def run() -> None:

@@ -13,6 +13,7 @@ actually exposes.
 from __future__ import annotations
 
 import logging
+from typing import Protocol
 
 from pydantic import BaseModel, Field
 
@@ -21,6 +22,13 @@ from shared.protocol import TOPIC_MOVE, MoveCommand
 from .base import SkillContext, SkillResult
 
 log = logging.getLogger(__name__)
+
+
+class CatalogLike(Protocol):
+    """Subset of MoveCatalog that PlayMoveSkill needs — narrows the
+    coupling for tests."""
+
+    def is_known(self, dataset: str, name: str) -> bool: ...
 
 
 class PlayMoveParams(BaseModel):
@@ -48,7 +56,20 @@ class PlayMoveSkill:
     )
     Params = PlayMoveParams
 
+    def __init__(self, catalog: CatalogLike | None = None) -> None:
+        self._catalog = catalog
+
     async def run(self, params: PlayMoveParams, ctx: SkillContext) -> SkillResult:
+        if self._catalog is not None and not self._catalog.is_known(params.dataset, params.name):
+            log.warning(
+                "[turn=%s] play_move rejected: %s/%s not in catalog",
+                ctx.turn_id, params.dataset, params.name,
+            )
+            return SkillResult(
+                ok=False,
+                skill=self.name,
+                detail=f"unknown move: {params.dataset}/{params.name}",
+            )
         cmd = MoveCommand(dataset=params.dataset, name=params.name, turn_id=ctx.turn_id)
         await ctx.mqtt.publish(TOPIC_MOVE, cmd.model_dump_json())
         log.info("[turn=%s] play_move: %s/%s", ctx.turn_id, params.dataset, params.name)
