@@ -66,12 +66,12 @@ moves:
   datasets:
     - pollen-robotics/reachy-mini-dances-library
     - pollen-robotics/reachy-mini-emotions-library
-  # Per-move descriptions the LLM planner sees. Keys are "{dataset}/{move}".
-  # Discover real move names with:
-  #   python -m server.tools.refresh_move_catalog
-  # Only moves listed here are selectable by the planner (intersected with
-  # what the daemon reports). Unlisted moves are logged at startup so you
-  # know what to fill in.
-  descriptions: {}
   cache_path: ~/.cache/buggsy/move_catalog.json   # disk fallback when daemon is unreachable
   refresh_seconds: 30.0                            # retry interval for background fetch in say-only mode
+
+  # Per-move descriptions exposed to the LLM planner. The curated defaults
+  # ship as package data under server/orchestrator/move_descriptions/.
+  # Anything you set here is merged on top of the defaults (yours wins),
+  # so you can override wording or add descriptions for moves we haven't
+  # curated yet. Keys are "{dataset}/{move}".
+  descriptions: {}

@@ -36,6 +36,7 @@ from shared.protocol import (
 )
 
 from .move_catalog import MoveCatalog
+from .move_descriptions import load_packaged_descriptions
 from .planner import Planner, StubPlanner
 from .skills import PlayMoveSkill, SaySkill, SkillContext, SkillRegistry, dispatch
 
@@ -97,10 +98,17 @@ async def serve() -> None:
     log.info("orchestrator config: mqtt=%s:%d tts=%s voice=%s daemon=%s phrase=%r",
              host, port, tts_url, voice_id, daemon_url, cfg.greeting.static_phrase)
 
+    # Merge packaged curated descriptions with user overrides from
+    # buggsy.yaml. User config wins on key collisions.
+    descriptions = {
+        **load_packaged_descriptions(cfg.moves.datasets),
+        **cfg.moves.descriptions,
+    }
+
     async with httpx.AsyncClient() as http:
         catalog = MoveCatalog(
             datasets=cfg.moves.datasets,
-            descriptions=cfg.moves.descriptions,
+            descriptions=descriptions,
             cache_path=cfg.moves.cache_path,
             refresh_seconds=cfg.moves.refresh_seconds,
             http=http,

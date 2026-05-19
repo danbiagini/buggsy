@@ -28,6 +28,7 @@ import httpx
 from shared.protocol import load_config
 
 from ..orchestrator.move_catalog import MoveCatalog
+from ..orchestrator.move_descriptions import load_packaged_descriptions
 
 log = logging.getLogger("buggsy.tools.refresh_move_catalog")
 
@@ -40,10 +41,14 @@ async def _main() -> int:
     log.info("datasets: %s", cfg.moves.datasets)
     log.info("cache:    %s", cfg.moves.cache_path)
 
+    descriptions = {
+        **load_packaged_descriptions(cfg.moves.datasets),
+        **cfg.moves.descriptions,
+    }
     async with httpx.AsyncClient() as http:
         catalog = MoveCatalog(
             datasets=cfg.moves.datasets,
-            descriptions=cfg.moves.descriptions,
+            descriptions=descriptions,
             cache_path=cfg.moves.cache_path,
             refresh_seconds=cfg.moves.refresh_seconds,
             http=http,

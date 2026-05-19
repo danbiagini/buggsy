@@ -1,0 +1,33 @@
+# Curated descriptions for the Pollen "emotions" library, keyed by move name.
+# Dataset: pollen-robotics/reachy-mini-emotions-library
+# Heavy curation for an office-persona robot: negative/distressed emotions
+# (anxiety, contempt, disgust, fear, frustration, rage, sad, etc.) are
+# intentionally omitted from this default set. Override via
+# moves.descriptions in buggsy.yaml if you need them.
+
+amazed1:        "Look of amazement — wide-eyed wonder."
+attentive1:     "Focused listening posture — head forward, alert."
+calming1:       "Slow, calming motion — reassuring."
+cheerful1:      "Cheerful bright motion — upbeat."
+come1:          "Beckoning gesture — 'come here', friendly invitation."
+confused1:      "Confused head tilt — 'huh?', good for misheard requests."
+curious1:       "Curious lean-in — interested, exploratory."
+dance1:         "Short happy dance gesture — celebratory."
+enthusiastic1:  "Enthusiastic bounce — high energy positive."
+grateful1:      "Grateful bow-like gesture — thanks."
+helpful1:       "Helpful 'I've got this' posture — readiness to assist."
+inquiring1:     "Inquiring look — asking a question without words."
+laughing1:      "Laughing motion — amused, joyful."
+no1:            "Negative head shake — polite no."
+oops1:          "Sheepish 'oops' gesture — apology, mild mistake."
+proud1:         "Proud chest-up posture — accomplishment."
+relief1:        "Visible relief — exhale, 'phew'."
+serenity1:      "Serene, peaceful pose — calm presence."
+shy1:           "Shy duck-and-look-away — endearing, modest."
+sleep1:         "Drifting off to sleep — use for end-of-day or 'good night'."
+success1:       "Success celebration — small victory pose."
+surprised1:     "Surprised reaction — quick startle."
+thoughtful1:    "Thoughtful pose — 'let me think', good for slow responses."
+understanding1: "Understanding nod — 'got it', acknowledgement."
+welcoming1:     "Welcoming greeting — open, friendly hello."
+yes1:           "Affirmative yes — clear agreement."
