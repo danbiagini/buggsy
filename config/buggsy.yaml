@@ -62,16 +62,17 @@ tts_service:
   url: http://localhost:8001      # Piper TTS service (the orchestrator calls this)
 
 moves:
-  # Recorded-move datasets the orchestrator asks the daemon to enumerate.
+  # Recorded-move datasets exposed to the LLM planner. The packaged
+  # description files (server/orchestrator/move_descriptions/) cover
+  # these by default. Datasets here that have no description file just
+  # contribute zero entries — no harm.
   datasets:
     - pollen-robotics/reachy-mini-dances-library
     - pollen-robotics/reachy-mini-emotions-library
-  cache_path: ~/.cache/buggsy/move_catalog.json   # disk fallback when daemon is unreachable
-  refresh_seconds: 30.0                            # retry interval for background fetch in say-only mode
 
-  # Per-move descriptions exposed to the LLM planner. The curated defaults
-  # ship as package data under server/orchestrator/move_descriptions/.
-  # Anything you set here is merged on top of the defaults (yours wins),
-  # so you can override wording or add descriptions for moves we haven't
-  # curated yet. Keys are "{dataset}/{move}".
+  # Per-move description overrides. Keys are "{dataset}/{move}". Values
+  # are merged on top of the packaged defaults (yours wins), so use this
+  # to override wording or add a move we haven't curated. Discover
+  # available move names on a live robot with:
+  #   python -m server.tools.list_moves
   descriptions: {}

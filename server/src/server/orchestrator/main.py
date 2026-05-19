@@ -87,7 +87,6 @@ async def serve() -> None:
     port = int(os.environ.get("BUGGSY_MQTT_PORT", str(cfg.mqtt.port)))
     tts_url = os.environ.get("BUGGSY_TTS_URL", cfg.tts_service.url)
     voice_id = os.environ.get("BUGGSY_VOICE_ID") or cfg.tts.voice_id
-    daemon_url = os.environ.get("BUGGSY_DAEMON_URL", cfg.daemon.url)
 
     if cfg.greeting.source != "static":
         log.warning("greeting.source %r not yet implemented — using StubPlanner",
@@ -95,8 +94,8 @@ async def serve() -> None:
 
     planner: Planner = StubPlanner(cfg.greeting.static_phrase)
 
-    log.info("orchestrator config: mqtt=%s:%d tts=%s voice=%s daemon=%s phrase=%r",
-             host, port, tts_url, voice_id, daemon_url, cfg.greeting.static_phrase)
+    log.info("orchestrator config: mqtt=%s:%d tts=%s voice=%s phrase=%r",
+             host, port, tts_url, voice_id, cfg.greeting.static_phrase)
 
     # Merge packaged curated descriptions with user overrides from
     # buggsy.yaml. User config wins on key collisions.
@@ -104,44 +103,34 @@ async def serve() -> None:
         **load_packaged_descriptions(cfg.moves.datasets),
         **cfg.moves.descriptions,
     }
+    catalog = MoveCatalog(descriptions=descriptions)
+    log.info("move catalog: %d entries", catalog.total_known())
+
+    registry = SkillRegistry([
+        SaySkill(tts_url=tts_url, voice_id=voice_id),
+        PlayMoveSkill(catalog=catalog),
+    ])
+    log.info("registered skills: %s", registry.names())
 
     async with httpx.AsyncClient() as http:
-        catalog = MoveCatalog(
-            datasets=cfg.moves.datasets,
-            descriptions=descriptions,
-            cache_path=cfg.moves.cache_path,
-            refresh_seconds=cfg.moves.refresh_seconds,
-            http=http,
-        )
-        await catalog.start(daemon_url)
-
-        registry = SkillRegistry([
-            SaySkill(tts_url=tts_url, voice_id=voice_id),
-            PlayMoveSkill(catalog=catalog),
-        ])
-        log.info("registered skills: %s", registry.names())
-
-        try:
-            while True:
-                try:
-                    async with aiomqtt.Client(host, port=port) as client:
-                        log.info("mqtt connected")
-                        await client.subscribe(TOPIC_WAKE)
-                        await client.subscribe(TOPIC_STATE)
-                        await client.subscribe(TOPIC_SPOKE_DONE)
-                        async for msg in client.messages:
-                            topic = msg.topic.value
-                            if topic == TOPIC_WAKE:
-                                await handle_wake(client, http, registry, planner, msg.payload)
-                            elif topic == TOPIC_STATE:
-                                await handle_state(msg.payload)
-                            elif topic == TOPIC_SPOKE_DONE:
-                                await handle_spoke_done(msg.payload)
-                except aiomqtt.MqttError as e:
-                    log.warning("mqtt connection lost: %s — reconnecting in 5s", e)
-                    await asyncio.sleep(5)
-        finally:
-            await catalog.stop()
+        while True:
+            try:
+                async with aiomqtt.Client(host, port=port) as client:
+                    log.info("mqtt connected")
+                    await client.subscribe(TOPIC_WAKE)
+                    await client.subscribe(TOPIC_STATE)
+                    await client.subscribe(TOPIC_SPOKE_DONE)
+                    async for msg in client.messages:
+                        topic = msg.topic.value
+                        if topic == TOPIC_WAKE:
+                            await handle_wake(client, http, registry, planner, msg.payload)
+                        elif topic == TOPIC_STATE:
+                            await handle_state(msg.payload)
+                        elif topic == TOPIC_SPOKE_DONE:
+                            await handle_spoke_done(msg.payload)
+            except aiomqtt.MqttError as e:
+                log.warning("mqtt connection lost: %s — reconnecting in 5s", e)
+                await asyncio.sleep(5)
 
 
 def run() -> None:

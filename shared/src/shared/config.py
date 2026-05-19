@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 log = logging.getLogger(__name__)
 
@@ -72,10 +72,6 @@ class TtsServiceConfig(BaseModel):
     url: str = "http://localhost:8001"
 
 
-def _default_cache_path() -> Path:
-    return Path("~/.cache/buggsy/move_catalog.json").expanduser()
-
-
 class MovesConfig(BaseModel):
     datasets: list[str] = Field(
         default_factory=lambda: [
@@ -83,18 +79,12 @@ class MovesConfig(BaseModel):
             "pollen-robotics/reachy-mini-emotions-library",
         ]
     )
-    # Keys are "{dataset}/{move}", values are one-line descriptions used in
-    # the LLM tool spec. Run `python -m server.tools.refresh_move_catalog`
-    # against a live daemon to discover real move names, then fill in.
+    # Per-move description overrides, keyed by "{dataset}/{move}". Merged
+    # on top of the packaged defaults under
+    # server/orchestrator/move_descriptions/. Run
+    #   python -m server.tools.list_moves
+    # against a live daemon to discover real names.
     descriptions: dict[str, str] = Field(default_factory=dict)
-    cache_path: Path = Field(default_factory=_default_cache_path)
-    # Background retry interval when the daemon was unreachable at startup.
-    refresh_seconds: float = 30.0
-
-    @field_validator("cache_path", mode="before")
-    @classmethod
-    def _expand_cache_path(cls, v):
-        return Path(v).expanduser() if v is not None else v
 
 
 class BuggsyConfig(BaseModel):
