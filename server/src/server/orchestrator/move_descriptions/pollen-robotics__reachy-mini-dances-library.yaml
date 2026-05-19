@@ -1,0 +1,20 @@
+# Curated descriptions for the Pollen "dances" library, keyed by move name.
+# Dataset: pollen-robotics/reachy-mini-dances-library
+# Moves not listed here are present on the robot but intentionally not
+# exposed to the LLM planner (abstract / hard-to-place names).
+
+chicken_peck:        "Quirky chicken-style head pecks — playful, slightly silly."
+chin_lead:           "Lead with the chin in a smooth forward-and-back motion."
+dizzy_spin:          "Wobbly spinning motion as if dizzy — use sparingly, fun reaction."
+groovy_sway_and_roll: "Smooth groovy sway with a roll — relaxed, musical."
+head_tilt_roll:      "Head tilt that rolls into a circle — curious, contemplative."
+neck_recoil:         "Sharp neck recoil — playful surprise or 'whoa' reaction."
+pendulum_swing:      "Steady left-right pendulum sway — calm, rhythmic."
+sharp_side_tilt:     "Quick side tilt of the head — snappy, decisive."
+side_glance_flick:   "Quick side glance with a flick — sneaky, mischievous peek."
+side_peekaboo:       "Playful peek-around motion — endearing, curious."
+side_to_side_sway:   "Casual side-to-side sway — easygoing, dance-y."
+simple_nod:          "Simple affirmative nod — minimal, professional yes."
+stumble_and_recover: "Stumble then recover — clumsy, comic 'oops'."
+uh_huh_tilt:         "Nodding tilt that says 'uh-huh' — engaged listening."
+yeah_nod:            "Enthusiastic 'yeah!' nod — excited agreement."

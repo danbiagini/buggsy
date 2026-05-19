@@ -35,6 +35,8 @@ from shared.protocol import (
     load_config,
 )
 
+from .move_catalog import MoveCatalog
+from .move_descriptions import load_packaged_descriptions
 from .planner import Planner, StubPlanner
 from .skills import PlayMoveSkill, SaySkill, SkillContext, SkillRegistry, dispatch
 
@@ -90,14 +92,25 @@ async def serve() -> None:
         log.warning("greeting.source %r not yet implemented — using StubPlanner",
                     cfg.greeting.source)
 
-    registry = SkillRegistry([
-        SaySkill(tts_url=tts_url, voice_id=voice_id),
-        PlayMoveSkill(),
-    ])
     planner: Planner = StubPlanner(cfg.greeting.static_phrase)
 
-    log.info("orchestrator config: mqtt=%s:%d tts=%s voice=%s skills=%s phrase=%r",
-             host, port, tts_url, voice_id, registry.names(), cfg.greeting.static_phrase)
+    log.info("orchestrator config: mqtt=%s:%d tts=%s voice=%s phrase=%r",
+             host, port, tts_url, voice_id, cfg.greeting.static_phrase)
+
+    # Merge packaged curated descriptions with user overrides from
+    # buggsy.yaml. User config wins on key collisions.
+    descriptions = {
+        **load_packaged_descriptions(cfg.moves.datasets),
+        **cfg.moves.descriptions,
+    }
+    catalog = MoveCatalog(descriptions=descriptions)
+    log.info("move catalog: %d entries", catalog.total_known())
+
+    registry = SkillRegistry([
+        SaySkill(tts_url=tts_url, voice_id=voice_id),
+        PlayMoveSkill(catalog=catalog),
+    ])
+    log.info("registered skills: %s", registry.names())
 
     async with httpx.AsyncClient() as http:
         while True:

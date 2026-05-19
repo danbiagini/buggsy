@@ -72,6 +72,21 @@ class TtsServiceConfig(BaseModel):
     url: str = "http://localhost:8001"
 
 
+class MovesConfig(BaseModel):
+    datasets: list[str] = Field(
+        default_factory=lambda: [
+            "pollen-robotics/reachy-mini-dances-library",
+            "pollen-robotics/reachy-mini-emotions-library",
+        ]
+    )
+    # Per-move description overrides, keyed by "{dataset}/{move}". Merged
+    # on top of the packaged defaults under
+    # server/orchestrator/move_descriptions/. Run
+    #   python -m server.tools.list_moves
+    # against a live daemon to discover real names.
+    descriptions: dict[str, str] = Field(default_factory=dict)
+
+
 class BuggsyConfig(BaseModel):
     robot: RobotConfig = Field(default_factory=RobotConfig)
     wake: WakeConfig = Field(default_factory=WakeConfig)
@@ -82,6 +97,7 @@ class BuggsyConfig(BaseModel):
     mqtt: MqttConfig = Field(default_factory=MqttConfig)
     daemon: DaemonConfig = Field(default_factory=DaemonConfig)
     tts_service: TtsServiceConfig = Field(default_factory=TtsServiceConfig)
+    moves: MovesConfig = Field(default_factory=MovesConfig)
 
 
 def load_config(path: Path | str | None = None) -> BuggsyConfig:

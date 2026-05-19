@@ -17,6 +17,12 @@ mqtt:
   host: localhost                 # broker — point at your server box from the robot
   port: 1883
 
+daemon:
+  url: http://localhost:8000      # Reachy Mini daemon HTTP API.
+                                  # Robot: localhost is correct (daemon runs on the robot).
+                                  # Server: override to the robot's hostname,
+                                  #   e.g. BUGGSY_CONFIG=... or BUGGSY_DAEMON_URL=http://reachy-mini.local:8000
+
 
 # ─── Robot only ─────────────────────────────────────────────────────────
 
@@ -42,9 +48,6 @@ audio:
   input_device: null              # null -> auto-detect "Reachy Mini Audio"
   output_device: null             # null -> auto-detect "reachymini_audio_sink"
 
-daemon:
-  url: http://localhost:8000      # Reachy Mini daemon HTTP API
-
 
 # ─── Server only ────────────────────────────────────────────────────────
 
@@ -57,3 +60,19 @@ tts:
 
 tts_service:
   url: http://localhost:8001      # Piper TTS service (the orchestrator calls this)
+
+moves:
+  # Recorded-move datasets exposed to the LLM planner. The packaged
+  # description files (server/orchestrator/move_descriptions/) cover
+  # these by default. Datasets here that have no description file just
+  # contribute zero entries — no harm.
+  datasets:
+    - pollen-robotics/reachy-mini-dances-library
+    - pollen-robotics/reachy-mini-emotions-library
+
+  # Per-move description overrides. Keys are "{dataset}/{move}". Values
+  # are merged on top of the packaged defaults (yours wins), so use this
+  # to override wording or add a move we haven't curated. Discover
+  # available move names on a live robot with:
+  #   python -m server.tools.list_moves
+  descriptions: {}
