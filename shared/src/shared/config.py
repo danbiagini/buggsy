@@ -59,6 +59,12 @@ class AudioConfig(BaseModel):
     output_device: int | str | None = None
 
 
+class UtteranceConfig(BaseModel):
+    max_seconds: float = 8.0       # hard cap on a single captured utterance
+    silence_seconds: float = 0.8   # trailing silence that ends capture
+    silence_rms: float = 400.0     # int16 RMS below this counts as silence
+
+
 class MqttConfig(BaseModel):
     host: str = "localhost"
     port: int = 1883
@@ -101,6 +107,7 @@ class BuggsyConfig(BaseModel):
     tts: TtsConfig = Field(default_factory=TtsConfig)
     motion: MotionConfig = Field(default_factory=MotionConfig)
     audio: AudioConfig = Field(default_factory=AudioConfig)
+    utterance: UtteranceConfig = Field(default_factory=UtteranceConfig)
     mqtt: MqttConfig = Field(default_factory=MqttConfig)
     daemon: DaemonConfig = Field(default_factory=DaemonConfig)
     tts_service: TtsServiceConfig = Field(default_factory=TtsServiceConfig)

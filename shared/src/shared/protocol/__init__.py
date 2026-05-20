@@ -5,11 +5,13 @@ from .mqtt_topics import (
     TOPIC_SPEAK,
     TOPIC_SPOKE_DONE,
     TOPIC_STATE,
+    TOPIC_UTTERANCE,
     TOPIC_WAKE,
     MoveCommand,
     SpeakCommand,
     SpokeDoneEvent,
     StateMessage,
+    UtteranceEvent,
     WakeEvent,
 )
 
@@ -21,11 +23,13 @@ __all__ = [
     "TOPIC_SPEAK",
     "TOPIC_SPOKE_DONE",
     "TOPIC_STATE",
+    "TOPIC_UTTERANCE",
     "TOPIC_WAKE",
     "MoveCommand",
     "SpeakCommand",
     "SpokeDoneEvent",
     "StateMessage",
+    "UtteranceEvent",
     "WakeEvent",
     "load_config",
 ]
