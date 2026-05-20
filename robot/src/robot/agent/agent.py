@@ -66,7 +66,7 @@ from shared.protocol import (
 from .audio_bus import AudioBus
 from .audio_out import pick_output_device, play_wav_b64
 from .motion import MockMotion, Motion, MotionLike
-from .utterance import UtteranceCapturer
+from .utterance import PrerollBuffer, UtteranceCapturer
 from .wake_detector import OpenWakeWordDetector, run_wake_detection
 
 log = logging.getLogger("buggsy.agent")
@@ -227,6 +227,8 @@ async def main() -> None:
             silence_seconds=cfg.utterance.silence_seconds,
             silence_rms=cfg.utterance.silence_rms,
         )
+        preroll = PrerollBuffer(bus, cfg.utterance.preroll_seconds)
+        preroll.start()
 
         async with maybe_mqtt(mqtt_host, mqtt_port, skip_mqtt) as mqtt:
 
@@ -235,7 +237,8 @@ async def main() -> None:
                 # spoke, ship the utterance for STT. If it was a bare wake
                 # (no speech in the lead-in), publish the wake event so the
                 # orchestrator greets — Buggsy prompts "what can I help with?"
-                wav = await capturer.capture()
+                # Prepend preroll so words spoken into the wake-word lag survive.
+                wav = await capturer.capture(preroll.snapshot())
                 if wav:
                     utt = UtteranceEvent(
                         ts=time.time(),
@@ -359,6 +362,7 @@ async def main() -> None:
                 for t in tasks:
                     t.cancel()
                 await asyncio.gather(*tasks, return_exceptions=True)
+                preroll.stop()
                 bus.stop()
                 try:
                     motion.resting_pose()

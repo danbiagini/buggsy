@@ -14,7 +14,9 @@ from __future__ import annotations
 import asyncio
 import io
 import logging
+import math
 import wave
+from collections import deque
 
 import numpy as np
 
@@ -48,6 +50,42 @@ def frames_to_wav(frames: list[bytes], sample_rate: int) -> bytes:
     return buf.getvalue()
 
 
+class PrerollBuffer:
+    """Continuously keeps the most recent `seconds` of audio so a command
+    spoken into the wake-word detection lag can be recovered.
+
+    Runs its own AudioBus subscription on a background task; the wake
+    detector and the capturer each have their own subscriptions, so this
+    doesn't disturb them.
+    """
+
+    def __init__(self, bus: AudioBus, seconds: float) -> None:
+        self._bus = bus
+        # Keep at least `seconds` worth of frames.
+        maxlen = max(1, math.ceil(seconds * 1000 / bus.frame_ms))
+        self._frames: deque[bytes] = deque(maxlen=maxlen)
+        self._sub: Subscription | None = None
+        self._task: asyncio.Task | None = None
+
+    def start(self) -> None:
+        self._sub = self._bus.subscribe()
+        self._task = asyncio.create_task(self._run(), name="preroll")
+
+    async def _run(self) -> None:
+        assert self._sub is not None
+        async for frame in self._sub.frames():
+            self._frames.append(frame)
+
+    def snapshot(self) -> list[bytes]:
+        return list(self._frames)
+
+    def stop(self) -> None:
+        if self._sub is not None:
+            self._bus.unsubscribe(self._sub)
+        if self._task is not None:
+            self._task.cancel()
+
+
 class UtteranceCapturer:
     def __init__(
         self,
@@ -64,13 +102,17 @@ class UtteranceCapturer:
         self._silence_seconds = silence_seconds
         self._silence_rms = silence_rms
 
-    async def capture(self) -> bytes | None:
+    async def capture(self, preroll_frames: list[bytes] | None = None) -> bytes | None:
         """Listen for a command after the wake word.
 
         Returns WAV bytes if speech started within `lead_in_seconds` (the
         utterance, captured until trailing silence or the hard cap), or
         None if no speech was heard in the lead-in window — a bare wake
         the caller should treat as a greeting prompt.
+
+        `preroll_frames` (audio captured just before/around the wake word)
+        is prepended only when a command is detected, so the command-vs-
+        greeting decision stays based on live post-wake audio.
 
         Uses its own short-lived subscription so wake detection's stream
         is untouched.
@@ -82,7 +124,8 @@ class UtteranceCapturer:
             self._bus.unsubscribe(sub)
         if not frames:
             return None
-        return frames_to_wav(frames, self._bus.sample_rate)
+        all_frames = (preroll_frames or []) + frames
+        return frames_to_wav(all_frames, self._bus.sample_rate)
 
     async def _collect(self, sub: Subscription) -> list[bytes]:
         frames: list[bytes] = []

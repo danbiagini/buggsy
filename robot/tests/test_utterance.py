@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 from robot.agent.utterance import (
+    PrerollBuffer,
     UtteranceCapturer,
     frame_rms,
     frame_seconds,
@@ -135,3 +136,34 @@ async def test_speech_after_brief_silence_is_captured():
         n_frames = w.getnframes() // FRAME_SAMPLES
     # 5 loud + ~10 trailing silent; the 2 leading silent frames dropped.
     assert 15 <= n_frames <= 16
+
+
+async def test_preroll_prepended_on_command():
+    # Command detected -> preroll frames are prepended to the WAV.
+    frames = [_loud_frame()] * 5 + [_silent_frame()] * 20
+    bus = _FakeBus(frames)
+    cap = _capturer(bus, silence_seconds=0.8)
+    preroll = [_loud_frame()] * 3
+    wav = await cap.capture(preroll_frames=preroll)
+    assert wav is not None
+    with wave.open(io.BytesIO(wav), "rb") as w:
+        n_frames = w.getnframes() // FRAME_SAMPLES
+    # 3 preroll + (5 loud + ~10 silent) = 18-19
+    assert 18 <= n_frames <= 19
+
+
+async def test_preroll_discarded_on_bare_wake():
+    # No speech onset -> bare wake -> None, preroll is NOT emitted.
+    frames = [_silent_frame()] * 50
+    bus = _FakeBus(frames)
+    cap = _capturer(bus, lead_in_seconds=0.3)
+    wav = await cap.capture(preroll_frames=[_loud_frame()] * 3)
+    assert wav is None
+
+
+def test_preroll_buffer_maxlen():
+    # 1.0s at 80ms frames -> ceil(12.5) = 13 frames retained.
+    class _Bus:
+        frame_ms = 80
+    buf = PrerollBuffer(_Bus(), seconds=1.0)
+    assert buf._frames.maxlen == 13

@@ -60,6 +60,9 @@ class AudioConfig(BaseModel):
 
 
 class UtteranceConfig(BaseModel):
+    preroll_seconds: float = 1.5   # rolling audio kept before wake fires, prepended
+                                   # to a command so words spoken into the wake-word
+                                   # latency gap aren't lost
     lead_in_seconds: float = 2.5   # wait this long for speech to START after wake;
                                    # if none, it's a bare wake -> greeting prompt
     max_seconds: float = 8.0       # hard cap on a single captured utterance
