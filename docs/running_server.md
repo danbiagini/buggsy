@@ -59,6 +59,27 @@ python -c "import base64,sys; sys.stdout.write(base64.b64encode(open('clip.wav',
 
 The `stt` service in compose reserves an NVIDIA GPU via the `deploy.resources.reservations.devices` block. Requires [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/) on the host. To run CPU-only (slow, but works on dev boxes without a GPU), comment out the `deploy:` block — faster-whisper auto-falls-back when `BUGGSY_STT_DEVICE=auto`.
 
+#### Wiring nvidia-container-toolkit into Docker
+
+Installing the toolkit isn't enough — Docker needs to be told to register the `nvidia` runtime. If `docker compose up stt` fails with `could not select device driver "nvidia" with capabilities: [[gpu]]`, run:
+
+```bash
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo systemctl restart docker
+```
+
+Verify:
+
+```bash
+docker info | grep -i runtime
+# expect: Runtimes: io.containerd.runc.v2 nvidia runc
+
+docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
+# expect: a table listing your GPU
+```
+
+If the host `nvidia-smi` works but the container one doesn't, you likely have the deprecated `nvidia-docker2` package installed instead of `nvidia-container-toolkit` — uninstall the former, install the latter, repeat the `nvidia-ctk` step.
+
 ## Run the orchestrator
 
 From the repo root:
