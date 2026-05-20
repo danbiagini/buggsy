@@ -28,9 +28,11 @@ import httpx
 from shared.protocol import (
     TOPIC_SPOKE_DONE,
     TOPIC_STATE,
+    TOPIC_UTTERANCE,
     TOPIC_WAKE,
     SpokeDoneEvent,
     StateMessage,
+    UtteranceEvent,
     WakeEvent,
     load_config,
 )
@@ -81,6 +83,20 @@ async def handle_spoke_done(payload: bytes) -> None:
     log.info("robot finished speaking (ts=%.1f)", evt.ts)
 
 
+async def handle_utterance(payload: bytes) -> None:
+    # Seam for #25 (LlmPlanner): for now just confirm the pipe works —
+    # STT + planner dispatch land in the next issue.
+    try:
+        evt = UtteranceEvent.model_validate_json(payload)
+    except Exception as e:
+        log.warning("bad utterance payload: %s", e)
+        return
+    n_bytes = len(evt.audio_b64 or "")
+    log.info("utterance received: %s sr=%dHz audio=%dB(b64)",
+             "inline" if evt.audio_b64 else (evt.audio_url or "none"),
+             evt.sample_rate, n_bytes)
+
+
 async def serve() -> None:
     cfg = load_config()
     host = os.environ.get("BUGGSY_MQTT_HOST", cfg.mqtt.host)
@@ -120,6 +136,7 @@ async def serve() -> None:
                     await client.subscribe(TOPIC_WAKE)
                     await client.subscribe(TOPIC_STATE)
                     await client.subscribe(TOPIC_SPOKE_DONE)
+                    await client.subscribe(TOPIC_UTTERANCE)
                     async for msg in client.messages:
                         topic = msg.topic.value
                         if topic == TOPIC_WAKE:
@@ -128,6 +145,8 @@ async def serve() -> None:
                             await handle_state(msg.payload)
                         elif topic == TOPIC_SPOKE_DONE:
                             await handle_spoke_done(msg.payload)
+                        elif topic == TOPIC_UTTERANCE:
+                            await handle_utterance(msg.payload)
             except aiomqtt.MqttError as e:
                 log.warning("mqtt connection lost: %s — reconnecting in 5s", e)
                 await asyncio.sleep(5)

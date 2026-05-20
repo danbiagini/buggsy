@@ -34,6 +34,7 @@ Env vars:
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import os
@@ -51,11 +52,13 @@ from shared.protocol import (
     TOPIC_SPEAK,
     TOPIC_SPOKE_DONE,
     TOPIC_STATE,
+    TOPIC_UTTERANCE,
     TOPIC_WAKE,
     MoveCommand,
     SpeakCommand,
     SpokeDoneEvent,
     StateMessage,
+    UtteranceEvent,
     WakeEvent,
     load_config,
 )
@@ -63,6 +66,7 @@ from shared.protocol import (
 from .audio_bus import AudioBus
 from .audio_out import pick_output_device, play_wav_b64
 from .motion import MockMotion, Motion, MotionLike
+from .utterance import UtteranceCapturer
 from .wake_detector import OpenWakeWordDetector, run_wake_detection
 
 log = logging.getLogger("buggsy.agent")
@@ -200,6 +204,7 @@ async def main() -> None:
 
     state = State.IDLE
     last_wake_ts = 0.0
+    capture_task: asyncio.Task | None = None
 
     with open_mini(use_mock) as mini:
         motion: MotionLike = (
@@ -215,20 +220,51 @@ async def main() -> None:
             vad_threshold=cfg.wake.vad_threshold,
             enable_speex_noise_suppression=cfg.wake.enable_speex_noise_suppression,
         )
+        capturer = UtteranceCapturer(
+            bus,
+            preroll_seconds=cfg.utterance.preroll_seconds,
+            lead_in_seconds=cfg.utterance.lead_in_seconds,
+            max_seconds=cfg.utterance.max_seconds,
+            silence_seconds=cfg.utterance.silence_seconds,
+            silence_rms=cfg.utterance.silence_rms,
+        )
+        capturer.start()
 
         async with maybe_mqtt(mqtt_host, mqtt_port, skip_mqtt) as mqtt:
 
+            async def listen_after_wake(evt: WakeEvent) -> None:
+                # Listen for a command after the wake word. If the user
+                # spoke, ship the utterance for STT. If it was a bare wake
+                # (no speech in the lead-in), publish the wake event so the
+                # orchestrator greets — Buggsy prompts "what can I help with?"
+                wav = await capturer.arm()
+                if wav:
+                    utt = UtteranceEvent(
+                        ts=time.time(),
+                        audio_b64=base64.b64encode(wav).decode("ascii"),
+                        sample_rate=bus.sample_rate,
+                    )
+                    await _publish_safe(mqtt, TOPIC_UTTERANCE, utt.model_dump_json())
+                    log.info("utterance published: %d bytes wav", len(wav))
+                else:
+                    await _publish_safe(mqtt, TOPIC_WAKE, evt.model_dump_json())
+                    log.info("bare wake -> greeting prompt")
+
             async def go_attentive(evt: WakeEvent) -> None:
-                nonlocal state, last_wake_ts
+                nonlocal state, last_wake_ts, capture_task
                 last_wake_ts = evt.ts
                 if state == State.IDLE:
                     state = State.WOKEN
                     log.info("WAKE confidence=%.3f -> attentive", evt.confidence)
                     motion.attentive_pose()
+                    # Listen for the command. Skip if a listen is still
+                    # running (rapid re-wake).
+                    if not capturer.busy and (capture_task is None or capture_task.done()):
+                        capture_task = asyncio.create_task(listen_after_wake(evt), name="listen")
+                    else:
+                        log.info("capture already in progress — not restarting")
                 else:
                     log.info("WAKE (already attentive) confidence=%.3f", evt.confidence)
-                # Fire-and-forget the MQTT publish so motion isn't gated on broker.
-                asyncio.create_task(_publish_safe(mqtt, TOPIC_WAKE, evt.model_dump_json()))
 
             async def cooldown_watcher() -> None:
                 nonlocal state
@@ -320,9 +356,12 @@ async def main() -> None:
             try:
                 await run_wake_detection(bus, detector, go_attentive, debounce_s=cfg.wake.debounce_seconds)
             finally:
+                if capture_task is not None:
+                    tasks.append(capture_task)
                 for t in tasks:
                     t.cancel()
                 await asyncio.gather(*tasks, return_exceptions=True)
+                capturer.stop()
                 bus.stop()
                 try:
                     motion.resting_pose()

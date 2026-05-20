@@ -58,6 +58,15 @@ class AudioBus:
         self._subs.append(sub)
         return sub
 
+    def unsubscribe(self, sub: Subscription) -> None:
+        """Remove a subscription so the producer stops dispatching to it.
+        Safe to call more than once."""
+        sub.close()
+        try:
+            self._subs.remove(sub)
+        except ValueError:
+            pass
+
     def start(self) -> None:
         if self._stream is not None:
             return
