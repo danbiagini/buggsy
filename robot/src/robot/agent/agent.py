@@ -66,7 +66,7 @@ from shared.protocol import (
 from .audio_bus import AudioBus
 from .audio_out import pick_output_device, play_wav_b64
 from .motion import MockMotion, Motion, MotionLike
-from .utterance import PrerollBuffer, UtteranceCapturer
+from .utterance import UtteranceCapturer
 from .wake_detector import OpenWakeWordDetector, run_wake_detection
 
 log = logging.getLogger("buggsy.agent")
@@ -222,13 +222,13 @@ async def main() -> None:
         )
         capturer = UtteranceCapturer(
             bus,
+            preroll_seconds=cfg.utterance.preroll_seconds,
             lead_in_seconds=cfg.utterance.lead_in_seconds,
             max_seconds=cfg.utterance.max_seconds,
             silence_seconds=cfg.utterance.silence_seconds,
             silence_rms=cfg.utterance.silence_rms,
         )
-        preroll = PrerollBuffer(bus, cfg.utterance.preroll_seconds)
-        preroll.start()
+        capturer.start()
 
         async with maybe_mqtt(mqtt_host, mqtt_port, skip_mqtt) as mqtt:
 
@@ -237,8 +237,7 @@ async def main() -> None:
                 # spoke, ship the utterance for STT. If it was a bare wake
                 # (no speech in the lead-in), publish the wake event so the
                 # orchestrator greets — Buggsy prompts "what can I help with?"
-                # Prepend preroll so words spoken into the wake-word lag survive.
-                wav = await capturer.capture(preroll.snapshot())
+                wav = await capturer.arm()
                 if wav:
                     utt = UtteranceEvent(
                         ts=time.time(),
@@ -260,8 +259,8 @@ async def main() -> None:
                     motion.attentive_pose()
                     # Listen for the command. Skip if a listen is still
                     # running (rapid re-wake).
-                    if capture_task is None or capture_task.done():
-                        capture_task = asyncio.create_task(listen_after_wake(evt), name="utterance")
+                    if not capturer.busy and (capture_task is None or capture_task.done()):
+                        capture_task = asyncio.create_task(listen_after_wake(evt), name="listen")
                     else:
                         log.info("capture already in progress — not restarting")
                 else:
@@ -362,7 +361,7 @@ async def main() -> None:
                 for t in tasks:
                     t.cancel()
                 await asyncio.gather(*tasks, return_exceptions=True)
-                preroll.stop()
+                capturer.stop()
                 bus.stop()
                 try:
                     motion.resting_pose()
