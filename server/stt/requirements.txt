@@ -1,0 +1,7 @@
+faster-whisper>=1.0
+# cuDNN runtime libraries faster-whisper needs for GPU inference. Pip
+# wheels avoid pinning to a CUDA-base image; works on CPU too.
+nvidia-cudnn-cu12
+nvidia-cublas-cu12
+fastapi>=0.110
+uvicorn[standard]>=0.30

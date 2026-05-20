@@ -18,3 +18,29 @@ services:
     restart: unless-stopped
     ports:
       - "8001:8001"
+
+  stt:
+    build:
+      context: ../stt
+      dockerfile: Dockerfile
+    container_name: buggsy-stt
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    # Persist downloaded Whisper weights across container restarts so we
+    # don't re-pull on every `docker compose up`.
+    volumes:
+      - stt-cache:/cache/huggingface
+    # GPU passthrough — requires nvidia-container-toolkit on the host.
+    # Comment this block out to run CPU-only (slower but works on dev
+    # boxes without a GPU).
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+volumes:
+  stt-cache:
