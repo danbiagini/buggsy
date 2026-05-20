@@ -72,6 +72,13 @@ class TtsServiceConfig(BaseModel):
     url: str = "http://localhost:8001"
 
 
+class SttServiceConfig(BaseModel):
+    url: str = "http://localhost:8002"
+    # Optional ISO 639-1 language code (e.g. "en"). None lets Whisper
+    # auto-detect per utterance.
+    language: str | None = None
+
+
 class MovesConfig(BaseModel):
     datasets: list[str] = Field(
         default_factory=lambda: [
@@ -97,6 +104,7 @@ class BuggsyConfig(BaseModel):
     mqtt: MqttConfig = Field(default_factory=MqttConfig)
     daemon: DaemonConfig = Field(default_factory=DaemonConfig)
     tts_service: TtsServiceConfig = Field(default_factory=TtsServiceConfig)
+    stt_service: SttServiceConfig = Field(default_factory=SttServiceConfig)
     moves: MovesConfig = Field(default_factory=MovesConfig)
 
 

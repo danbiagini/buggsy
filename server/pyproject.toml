@@ -18,6 +18,9 @@ dependencies = [
 dev = [
     "pytest>=8",
     "pytest-asyncio>=0.23",
+    # For testing the STT FastAPI app via TestClient. Not a server
+    # runtime dep — fastapi lives in server/stt/requirements.txt.
+    "fastapi>=0.110",
 ]
 
 [tool.hatch.build.targets.wheel]

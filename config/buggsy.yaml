@@ -61,6 +61,10 @@ tts:
 tts_service:
   url: http://localhost:8001      # Piper TTS service (the orchestrator calls this)
 
+stt_service:
+  url: http://localhost:8002      # faster-whisper STT service (utterance -> text)
+  language: en                    # null -> auto-detect; "en" if you only ever speak English
+
 moves:
   # Recorded-move datasets exposed to the LLM planner. The packaged
   # description files (server/orchestrator/move_descriptions/) cover
