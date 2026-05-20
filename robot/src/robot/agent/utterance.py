@@ -53,19 +53,28 @@ class UtteranceCapturer:
         self,
         bus: AudioBus,
         *,
+        lead_in_seconds: float,
         max_seconds: float,
         silence_seconds: float,
         silence_rms: float,
     ) -> None:
         self._bus = bus
+        self._lead_in_seconds = lead_in_seconds
         self._max_seconds = max_seconds
         self._silence_seconds = silence_seconds
         self._silence_rms = silence_rms
 
     async def capture(self) -> bytes | None:
-        """Record one utterance. Returns WAV bytes, or None if nothing
-        was captured. Uses its own short-lived subscription so wake
-        detection's stream is untouched."""
+        """Listen for a command after the wake word.
+
+        Returns WAV bytes if speech started within `lead_in_seconds` (the
+        utterance, captured until trailing silence or the hard cap), or
+        None if no speech was heard in the lead-in window — a bare wake
+        the caller should treat as a greeting prompt.
+
+        Uses its own short-lived subscription so wake detection's stream
+        is untouched.
+        """
         sub = self._bus.subscribe()
         try:
             frames = await self._collect(sub)
@@ -77,23 +86,47 @@ class UtteranceCapturer:
 
     async def _collect(self, sub: Subscription) -> list[bytes]:
         frames: list[bytes] = []
-        captured_s = 0.0
+        elapsed_s = 0.0       # all audio seen since capture start (incl. pre-speech)
+        recorded_s = 0.0      # audio actually kept (post speech onset)
         silence_s = 0.0
+        seen_speech = False
         sr = self._bus.sample_rate
-        while captured_s < self._max_seconds:
-            remaining = self._max_seconds - captured_s
-            try:
-                frame = await asyncio.wait_for(sub.queue.get(), timeout=remaining)
-            except asyncio.TimeoutError:
-                # Mic stalled or hit the cap mid-wait — stop with what we have.
+
+        while True:
+            # Two phases: before speech onset we bound the wait by the
+            # lead-in; after onset we bound it by the remaining cap.
+            if not seen_speech:
+                timeout = max(self._lead_in_seconds - elapsed_s, 0.0)
+            else:
+                timeout = max(self._max_seconds - recorded_s, 0.0)
+            if timeout <= 0.0:
                 break
+            try:
+                frame = await asyncio.wait_for(sub.queue.get(), timeout=timeout)
+            except asyncio.TimeoutError:
+                break  # lead-in elapsed with no speech, or hit the cap
+
+            fs = frame_seconds(frame, sr)
+            elapsed_s += fs
+            is_silent = frame_rms(frame) < self._silence_rms
+
+            if not seen_speech:
+                if is_silent:
+                    continue  # still waiting for the user to start
+                seen_speech = True
+
             frames.append(frame)
-            captured_s += frame_seconds(frame, sr)
-            if frame_rms(frame) < self._silence_rms:
-                silence_s += frame_seconds(frame, sr)
+            recorded_s += fs
+            if is_silent:
+                silence_s += fs
                 if silence_s >= self._silence_seconds:
                     break
             else:
                 silence_s = 0.0
-        log.info("utterance: %.2fs captured (%d frames)", captured_s, len(frames))
+
+        if not seen_speech:
+            log.info("utterance: no speech within %.1fs lead-in (greeting prompt)",
+                     self._lead_in_seconds)
+        else:
+            log.info("utterance: %.2fs captured (%d frames)", recorded_s, len(frames))
         return frames

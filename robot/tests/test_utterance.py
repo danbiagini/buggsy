@@ -81,14 +81,14 @@ class _FakeBus:
 
 
 def _capturer(bus, **kw) -> UtteranceCapturer:
-    defaults = dict(max_seconds=8.0, silence_seconds=0.8, silence_rms=400.0)
+    defaults = dict(lead_in_seconds=2.5, max_seconds=8.0,
+                    silence_seconds=0.8, silence_rms=400.0)
     defaults.update(kw)
     return UtteranceCapturer(bus, **defaults)
 
 
 async def test_capture_ends_on_silence():
-    # 5 loud frames (0.4s speech) then 10 silent frames (0.8s) -> should
-    # stop right after the silence run crosses silence_seconds.
+    # Speech starts immediately (5 loud frames) then 0.8s silence -> stop.
     frames = [_loud_frame()] * 5 + [_silent_frame()] * 20
     bus = _FakeBus(frames)
     cap = _capturer(bus, silence_seconds=0.8)
@@ -96,9 +96,7 @@ async def test_capture_ends_on_silence():
     assert wav is not None
     with wave.open(io.BytesIO(wav), "rb") as w:
         n_frames = w.getnframes() // FRAME_SAMPLES
-    # 5 loud + ~10 silent frames (0.8s / 0.08s); allow ±1 for the float
-    # accumulation boundary. The point: it stops shortly after silence,
-    # not at the 25-frame end of the buffer.
+    # 5 loud + ~10 silent (0.8s / 0.08s); allow ±1 for float boundary.
     assert 15 <= n_frames <= 16
     assert bus.unsubscribed == 1  # cleaned up its subscription
 
@@ -111,17 +109,29 @@ async def test_capture_ends_on_max_seconds():
     wav = await cap.capture()
     with wave.open(io.BytesIO(wav), "rb") as w:
         captured_s = (w.getnframes() / SAMPLE_RATE)
-    # Stops once captured >= max_seconds; one frame of overshoot at most.
+    # Stops once recorded >= max_seconds; one frame of overshoot at most.
     assert 1.0 <= captured_s <= 1.0 + 0.08 + 1e-6
 
 
-async def test_capture_returns_none_when_immediately_silent():
-    # Silence from the start -> still returns frames up to silence window,
-    # but if silence_seconds is tiny and all silent, we get a short clip.
-    frames = [_silent_frame()] * 20
+async def test_no_speech_in_lead_in_returns_none():
+    # Bare wake: only silence within the lead-in window -> greeting prompt.
+    frames = [_silent_frame()] * 50
     bus = _FakeBus(frames)
-    cap = _capturer(bus, silence_seconds=0.16)  # 2 frames
+    cap = _capturer(bus, lead_in_seconds=0.3)  # ~4 frames
     wav = await cap.capture()
-    # 2 silent frames captured before the silence run triggers stop.
+    assert wav is None
+    assert bus.unsubscribed == 1
+
+
+async def test_speech_after_brief_silence_is_captured():
+    # A beat of silence, then the user starts talking within the lead-in.
+    # Pre-speech silence is not recorded; capture starts at onset.
+    frames = [_silent_frame()] * 2 + [_loud_frame()] * 5 + [_silent_frame()] * 20
+    bus = _FakeBus(frames)
+    cap = _capturer(bus, lead_in_seconds=1.0, silence_seconds=0.8)
+    wav = await cap.capture()
+    assert wav is not None
     with wave.open(io.BytesIO(wav), "rb") as w:
-        assert w.getnframes() // FRAME_SAMPLES == 2
+        n_frames = w.getnframes() // FRAME_SAMPLES
+    # 5 loud + ~10 trailing silent; the 2 leading silent frames dropped.
+    assert 15 <= n_frames <= 16

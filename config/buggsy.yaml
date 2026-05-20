@@ -49,6 +49,8 @@ audio:
   output_device: null             # null -> auto-detect "reachymini_audio_sink"
 
 utterance:
+  lead_in_seconds: 2.5            # after wake, wait this long for speech to start.
+                                  # No speech in this window = bare wake -> greeting prompt.
   max_seconds: 8.0                # hard cap on a captured command after wake
   silence_seconds: 0.8            # trailing silence (no speech) that ends capture
   silence_rms: 400.0              # int16 RMS threshold; below this = silence.

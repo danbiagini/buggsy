@@ -222,6 +222,7 @@ async def main() -> None:
         )
         capturer = UtteranceCapturer(
             bus,
+            lead_in_seconds=cfg.utterance.lead_in_seconds,
             max_seconds=cfg.utterance.max_seconds,
             silence_seconds=cfg.utterance.silence_seconds,
             silence_rms=cfg.utterance.silence_rms,
@@ -229,18 +230,23 @@ async def main() -> None:
 
         async with maybe_mqtt(mqtt_host, mqtt_port, skip_mqtt) as mqtt:
 
-            async def capture_and_publish() -> None:
+            async def listen_after_wake(evt: WakeEvent) -> None:
+                # Listen for a command after the wake word. If the user
+                # spoke, ship the utterance for STT. If it was a bare wake
+                # (no speech in the lead-in), publish the wake event so the
+                # orchestrator greets — Buggsy prompts "what can I help with?"
                 wav = await capturer.capture()
-                if not wav:
-                    log.info("utterance: nothing captured")
-                    return
-                evt = UtteranceEvent(
-                    ts=time.time(),
-                    audio_b64=base64.b64encode(wav).decode("ascii"),
-                    sample_rate=bus.sample_rate,
-                )
-                await _publish_safe(mqtt, TOPIC_UTTERANCE, evt.model_dump_json())
-                log.info("utterance published: %d bytes wav", len(wav))
+                if wav:
+                    utt = UtteranceEvent(
+                        ts=time.time(),
+                        audio_b64=base64.b64encode(wav).decode("ascii"),
+                        sample_rate=bus.sample_rate,
+                    )
+                    await _publish_safe(mqtt, TOPIC_UTTERANCE, utt.model_dump_json())
+                    log.info("utterance published: %d bytes wav", len(wav))
+                else:
+                    await _publish_safe(mqtt, TOPIC_WAKE, evt.model_dump_json())
+                    log.info("bare wake -> greeting prompt")
 
             async def go_attentive(evt: WakeEvent) -> None:
                 nonlocal state, last_wake_ts, capture_task
@@ -249,16 +255,14 @@ async def main() -> None:
                     state = State.WOKEN
                     log.info("WAKE confidence=%.3f -> attentive", evt.confidence)
                     motion.attentive_pose()
-                    # Capture the command that follows the wake word. Skip if
-                    # a capture is still running (rapid re-wake).
+                    # Listen for the command. Skip if a listen is still
+                    # running (rapid re-wake).
                     if capture_task is None or capture_task.done():
-                        capture_task = asyncio.create_task(capture_and_publish(), name="utterance")
+                        capture_task = asyncio.create_task(listen_after_wake(evt), name="utterance")
                     else:
                         log.info("capture already in progress — not restarting")
                 else:
                     log.info("WAKE (already attentive) confidence=%.3f", evt.confidence)
-                # Fire-and-forget the MQTT publish so motion isn't gated on broker.
-                asyncio.create_task(_publish_safe(mqtt, TOPIC_WAKE, evt.model_dump_json()))
 
             async def cooldown_watcher() -> None:
                 nonlocal state

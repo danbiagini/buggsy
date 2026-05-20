@@ -60,6 +60,8 @@ class AudioConfig(BaseModel):
 
 
 class UtteranceConfig(BaseModel):
+    lead_in_seconds: float = 2.5   # wait this long for speech to START after wake;
+                                   # if none, it's a bare wake -> greeting prompt
     max_seconds: float = 8.0       # hard cap on a single captured utterance
     silence_seconds: float = 0.8   # trailing silence that ends capture
     silence_rms: float = 400.0     # int16 RMS below this counts as silence
